@@ -1,102 +1,95 @@
 # AppGPT ✦
 
-AppGPT is a static, GitHub Pages-friendly Telegram Mini App builder that lets users bring their own AI provider and generate working Telegram Mini Apps from natural-language prompts.
+AppGPT is a GitHub Pages-friendly AI builder for **Telegram Mini Apps**.
 
-## Features
+The core idea is intentionally simple: every generation produces **one complete `index.html` file** containing the app's HTML, CSS, and JavaScript. The generated file is attached to a persistent build chat so users can come back, continue editing, preview older versions, copy the HTML, or download it later.
 
-- Build a Telegram Mini App from a text prompt
-- Continue editing the same app with AI
-- Persistent multi-chat sessions with automatic resume
-- IndexedDB chat/project storage, with browser fallback
-- Telegram DeviceStorage for restoring the last session when supported
-- Telegram SecureStorage for remembered API keys when supported
-- Live Telegram-style phone preview
-- Download generated apps as a single `index.html`
-- OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Together, xAI, Gemini, Anthropic, and custom OpenAI-compatible endpoints
-- Donation UI for Telegram Stars, TON, and external card/support links
-- Works as a normal website and inside a Telegram Mini App
+## Current features
+
+- Persistent multi-chat history using IndexedDB
+- Automatically resumes the last opened chat
+- Versioned `index.html` artifacts saved inside each chat
+- Preview / Copy HTML / Download controls on generated-file cards
+- AI editing creates a new HTML version instead of destroying chat history
+- Dedicated Telegram Mini App system instructions for the AI
+- Robust extraction of HTML even if a model accidentally wraps it in a code fence
+- Validation that generated output contains a full HTML document
+- BYOK support for OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Together, xAI, Gemini, Anthropic, and custom OpenAI-compatible APIs
+- Telegram SecureStorage for remembered API keys when available
+- Telegram DeviceStorage for last-session restoration when available
+- Normal-browser fallbacks
+
+## Telegram-native create flow
+
+When AppGPT runs inside Telegram it uses Telegram Mini App UI APIs when available:
+
+- `MainButton` → opens the Create App flow
+- `SecondaryButton` → opens Chats
+- `SettingsButton` → opens Provider settings
+- `BackButton` → returns to the builder
+- `showPopup()` → native confirmation before creating an app
+- `HapticFeedback` → native-feeling success/error/selection feedback
+
+Telegram's native popup does not provide arbitrary text fields, so after the native confirmation AppGPT opens its own Telegram-themed setup sheet for:
+
+- App name
+- What the app should do
+- Visual style
+- Extra instructions
+
+Pressing **Create app** sends those details to the selected AI provider and automatically generates the saved `index.html` artifact.
+
+## AI output contract
+
+AppGPT gives the model a separate system instruction dedicated to Telegram app generation. It requires:
+
+1. Exactly one complete `index.html`
+2. Raw HTML only — no Markdown explanation
+3. All CSS inside `<style>` tags
+4. All JavaScript inside `<script>` tags
+5. Telegram's `telegram-web-app.js` SDK included
+6. Telegram APIs feature-detected with browser fallbacks
+7. No bot tokens or secret credentials embedded in generated code
+8. No React/npm/build step required
+
+When a user asks for an edit, AppGPT sends the current HTML plus the edit request and requires the model to return the **complete replacement `index.html`**, which becomes the next saved version.
+
+## How files are stored in chats
+
+Each chat stores:
+
+- Messages
+- App metadata
+- Up to 20 recent HTML artifacts
+- Latest artifact ID
+
+An assistant message can reference an `artifactId`. The artifact record contains the real HTML text, filename, MIME type, version, byte size, and creation time. This is why AppGPT can reliably show a file card and export the file without trying to scrape code out of chat text.
 
 ## Storage
 
-AppGPT does not use cookies for large chat histories. Cookies are too small for generated HTML and many conversations.
+Large chats and generated HTML are stored in **IndexedDB**, not cookies. The latest chat ID can also be mirrored into Telegram DeviceStorage where available. API keys can use Telegram SecureStorage where available.
 
-Instead it uses:
-
-- **IndexedDB** for chats, messages, and generated app HTML
-- **Telegram DeviceStorage** for the most recently opened chat when available
-- **Telegram SecureStorage** for a remembered AI API key when available
-- Browser storage fallbacks outside Telegram
-
-This is local/device storage. Cross-device account sync requires a backend/database and is not included in the GitHub Pages-only version.
-
-## AI provider setup
-
-Open **Provider**, choose a provider, paste an API key, select a model, and test the connection.
-
-> GitHub Pages is a static host. Some AI providers may reject direct browser requests because of CORS, and public/shared generated AI apps should use a backend proxy so secrets are never exposed to visitors.
-
-## Donations
-
-Public donation destinations are configured in `config.js`.
-
-```js
-export const DONATION_CONFIG = {
-  botUsername: "",
-  starsEndpoint: "",
-  tonAddress: "",
-  cardDonationUrl: "",
-  starAmounts: [50, 100, 250, 500],
-  tonAmounts: [0.5, 1, 5]
-};
-```
-
-### Telegram Stars
-
-The recommended flow is to set `starsEndpoint` to a small secure backend endpoint. It should receive the requested Stars amount, call Telegram's Bot API with the private bot token, create an `XTR` invoice/invoice link, and return:
-
-```json
-{ "invoiceUrl": "https://t.me/$..." }
-```
-
-AppGPT then opens that invoice with `Telegram.WebApp.openInvoice()`.
-
-**Never put the Telegram bot token in this GitHub repository or any GitHub Pages JavaScript.**
-
-As a simpler fallback, `botUsername` can deep-link users back to your bot using payloads like `donate_100`, where your bot can send the Stars invoice.
-
-### TON
-
-Set `tonAddress` to a public receiving wallet address. The donation buttons open a `ton://transfer/...` link with the selected amount.
-
-### Card / real money
-
-Set `cardDonationUrl` to a public checkout/support URL such as a Stripe Payment Link or creator-support page. Do not put secret payment-provider keys in the repository.
+Storage is still device-local in this GitHub Pages-only version. True account-based cross-device chat sync would require a backend/database.
 
 ## GitHub Pages
 
-1. Open **Settings → Pages** in the GitHub repository.
-2. Choose **Deploy from a branch**.
-3. Select `main` and `/ (root)`.
-4. Save.
-
-For this repository the expected URL is:
+Expected URL for this repository:
 
 `https://milkdromedastudios.github.io/AppGPT/`
 
+Enable it from **Settings → Pages → Deploy from a branch → main → /(root)** if it is not already enabled.
+
 ## Telegram setup
 
-In `@BotFather`:
+In `@BotFather`, configure your existing bot's Mini App/menu button to use the GitHub Pages HTTPS URL.
 
-1. Choose your existing bot.
-2. Configure its Main Mini App or menu button.
-3. Use your GitHub Pages HTTPS URL.
+AppGPT can generate the **Mini App frontend**, but frontend JavaScript cannot securely create a Telegram bot or register a Main Mini App with BotFather automatically. Those bot-level operations require Telegram's bot configuration flow and, for Bot API calls involving secrets, a secure backend.
 
 ## Security
 
-- Never hardcode API keys into generated public apps.
-- Never expose a Telegram bot token in frontend JavaScript.
-- Never put payment-provider secret keys in `config.js`.
-- `config.js` is for public values only: receiving address, bot username, public support URL, and public backend URL.
+- Never commit Telegram bot tokens.
+- Never hardcode private AI-provider keys into generated public apps.
+- GitHub Pages is static hosting and cannot keep secrets from visitors.
 
 ## License
 
