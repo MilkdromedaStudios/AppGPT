@@ -11,9 +11,9 @@ const els = {
   publishProjectName: $("publishProjectName"), publishDownload: $("publishDownloadBtn"), toast: $("toast"), newProject: $("newProjectBtn")
 };
 
-const STORAGE_CONFIG = "appgppt_provider_config";
-const STORAGE_KEY = "appgppt_provider_key";
-const STORAGE_PROJECTS = "appgppt_projects";
+const STORAGE_CONFIG = "appgpt_provider_config";
+const STORAGE_KEY = "appgpt_provider_key";
+const STORAGE_PROJECTS = "appgpt_projects";
 let currentProject = null;
 let busy = false;
 
@@ -60,7 +60,7 @@ function switchView(name) {
   document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === name));
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${name}`));
   const titles = { build:"Build a Telegram app", projects:"Your projects", settings:"Connect an AI provider", publish:"Publish your app" };
-  els.pageTitle.textContent = titles[name] || "AppGPPT";
+  els.pageTitle.textContent = titles[name] || "AppGPT";
   if (name === "projects") renderProjects();
 }
 
@@ -285,7 +285,7 @@ function cleanGeneratedHtml(raw) {
   return s.trim();
 }
 
-const BUILDER_SYSTEM_PROMPT = `You are AppGPPT, an expert Telegram Mini App engineer and product designer.
+const BUILDER_SYSTEM_PROMPT = `You are AppGPT, an expert Telegram Mini App engineer and product designer.
 Generate ONE complete, production-quality index.html file. Return raw HTML only — no markdown fences, no explanation.
 
 Requirements:
