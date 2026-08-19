@@ -1,92 +1,103 @@
 # AppGPT ✦
 
-**AppGPT** is a browser-based AI builder for Telegram Mini Apps. Connect your own AI provider, describe the app you want, preview the generated Mini App, edit it with AI, save projects locally, and export a single-file `index.html` ready for GitHub Pages.
+AppGPT is a static, GitHub Pages-friendly Telegram Mini App builder that lets users bring their own AI provider and generate working Telegram Mini Apps from natural-language prompts.
 
 ## Features
 
-- Telegram Mini App-aware generator
-- BYOK (bring your own API key)
-- Provider presets for OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Together AI, xAI, Gemini, Anthropic, and custom OpenAI-compatible APIs
-- AI app generation and iterative edits
-- Phone-style live preview
-- Browser-local project history
-- Download generated app as `index.html`
-- Responsive glass UI designed to work as a Telegram Mini App itself
-- No build step required
+- Build a Telegram Mini App from a text prompt
+- Continue editing the same app with AI
+- Persistent multi-chat sessions with automatic resume
+- IndexedDB chat/project storage, with browser fallback
+- Telegram DeviceStorage for restoring the last session when supported
+- Telegram SecureStorage for remembered API keys when supported
+- Live Telegram-style phone preview
+- Download generated apps as a single `index.html`
+- OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Together, xAI, Gemini, Anthropic, and custom OpenAI-compatible endpoints
+- Donation UI for Telegram Stars, TON, and external card/support links
+- Works as a normal website and inside a Telegram Mini App
 
-## Run locally
+## Storage
 
-Because the app uses ES modules, serve the folder through a local HTTP server instead of double-clicking `index.html`.
+AppGPT does not use cookies for large chat histories. Cookies are too small for generated HTML and many conversations.
 
-```bash
-python -m http.server 8080
+Instead it uses:
+
+- **IndexedDB** for chats, messages, and generated app HTML
+- **Telegram DeviceStorage** for the most recently opened chat when available
+- **Telegram SecureStorage** for a remembered AI API key when available
+- Browser storage fallbacks outside Telegram
+
+This is local/device storage. Cross-device account sync requires a backend/database and is not included in the GitHub Pages-only version.
+
+## AI provider setup
+
+Open **Provider**, choose a provider, paste an API key, select a model, and test the connection.
+
+> GitHub Pages is a static host. Some AI providers may reject direct browser requests because of CORS, and public/shared generated AI apps should use a backend proxy so secrets are never exposed to visitors.
+
+## Donations
+
+Public donation destinations are configured in `config.js`.
+
+```js
+export const DONATION_CONFIG = {
+  botUsername: "",
+  starsEndpoint: "",
+  tonAddress: "",
+  cardDonationUrl: "",
+  starAmounts: [50, 100, 250, 500],
+  tonAmounts: [0.5, 1, 5]
+};
 ```
 
-Then open `http://localhost:8080`.
+### Telegram Stars
 
-## Deploy AppGPT with GitHub Pages
+The recommended flow is to set `starsEndpoint` to a small secure backend endpoint. It should receive the requested Stars amount, call Telegram's Bot API with the private bot token, create an `XTR` invoice/invoice link, and return:
 
-1. Put these files on the repository's `main` branch.
-2. Open **Settings → Pages**.
-3. Under **Build and deployment**, choose **Deploy from a branch**.
-4. Select `main` and `/(root)`.
-5. Save.
-
-Your site will normally be available at:
-
-```text
-https://MilkdromedaStudios.github.io/AppGPT/
+```json
+{ "invoiceUrl": "https://t.me/$..." }
 ```
 
-## Connect it to Telegram
+AppGPT then opens that invoice with `Telegram.WebApp.openInvoice()`.
 
-In **@BotFather**, select your bot and configure the Mini App / menu button with the HTTPS GitHub Pages URL.
+**Never put the Telegram bot token in this GitHub repository or any GitHub Pages JavaScript.**
 
-The app loads Telegram's official Mini App JavaScript bridge:
+As a simpler fallback, `botUsername` can deep-link users back to your bot using payloads like `donate_100`, where your bot can send the Stars invoice.
 
-```html
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-```
+### TON
 
-## API-key security ⚠️
+Set `tonAddress` to a public receiving wallet address. The donation buttons open a `ton://transfer/...` link with the selected amount.
 
-GitHub Pages is static hosting. It cannot protect server-side secrets.
+### Card / real money
 
-AppGPT therefore uses the provider key directly from the creator's browser. By default it is stored only for the browser session; creators may explicitly choose to remember it in local storage.
+Set `cardDonationUrl` to a public checkout/support URL such as a Stripe Payment Link or creator-support page. Do not put secret payment-provider keys in the repository.
 
-**Do not embed private provider keys in generated public apps.** If a generated app needs an AI service for all of its visitors, put the provider key behind a server-side proxy such as a Cloudflare Worker, Vercel Function, or another backend.
+## GitHub Pages
 
-Some AI providers may block direct browser requests via CORS. In that case, use a provider that supports browser requests or add a secure proxy.
+1. Open **Settings → Pages** in the GitHub repository.
+2. Choose **Deploy from a branch**.
+3. Select `main` and `/ (root)`.
+4. Save.
 
-## Files
+For this repository the expected URL is:
 
-```text
-AppGPT/
-├── index.html
-├── styles.css
-├── app.js
-├── providers.js
-├── README.md
-├── 404.html
-└── .nojekyll
-```
+`https://milkdromedastudios.github.io/AppGPT/`
 
-## Current MVP limits
+## Telegram setup
 
-- Generated projects live in the current browser's `localStorage`.
-- Publishing generated apps is export-first; automatic repository creation is not included yet.
-- GitHub Pages cannot run a backend.
-- Provider model names/endpoints can change, so both model and base URL are editable.
+In `@BotFather`:
 
-## Next useful upgrades
+1. Choose your existing bot.
+2. Configure its Main Mini App or menu button.
+3. Use your GitHub Pages HTTPS URL.
 
-- GitHub OAuth / PAT-based one-click publishing of generated apps
-- Cloudflare Worker proxy for encrypted provider-key storage
-- Templates and version history
-- Multi-file generation
-- Bot-token connection and menu-button configuration
-- Optional database / accounts
+## Security
+
+- Never hardcode API keys into generated public apps.
+- Never expose a Telegram bot token in frontend JavaScript.
+- Never put payment-provider secret keys in `config.js`.
+- `config.js` is for public values only: receiving address, bot username, public support URL, and public backend URL.
 
 ## License
 
-Apache License 2.0
+See `LICENSE`.
