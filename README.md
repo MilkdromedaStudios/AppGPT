@@ -1,6 +1,6 @@
-# AppGPPT ✦
+# AppGPT ✦
 
-**AppGPPT** is a browser-based AI builder for Telegram Mini Apps. Connect your own AI provider, describe the app you want, preview the generated Mini App, edit it with AI, save projects locally, and export a single-file `index.html` ready for GitHub Pages.
+**AppGPT** is a browser-based AI builder for Telegram Mini Apps. Connect your own AI provider, describe the app you want, preview the generated Mini App, edit it with AI, save projects locally, and export a single-file `index.html` ready for GitHub Pages.
 
 ## Features
 
@@ -24,7 +24,7 @@ python -m http.server 8080
 
 Then open `http://localhost:8080`.
 
-## Deploy AppGPPT with GitHub Pages
+## Deploy AppGPT with GitHub Pages
 
 1. Put these files on the repository's `main` branch.
 2. Open **Settings → Pages**.
@@ -35,7 +35,7 @@ Then open `http://localhost:8080`.
 Your site will normally be available at:
 
 ```text
-https://YOUR-USERNAME.github.io/AppGPPT/
+https://MilkdromedaStudios.github.io/AppGPT/
 ```
 
 ## Connect it to Telegram
@@ -52,7 +52,7 @@ The app loads Telegram's official Mini App JavaScript bridge:
 
 GitHub Pages is static hosting. It cannot protect server-side secrets.
 
-AppGPPT therefore uses the provider key directly from the creator's browser. By default it is stored only for the browser session; creators may explicitly choose to remember it in local storage.
+AppGPT therefore uses the provider key directly from the creator's browser. By default it is stored only for the browser session; creators may explicitly choose to remember it in local storage.
 
 **Do not embed private provider keys in generated public apps.** If a generated app needs an AI service for all of its visitors, put the provider key behind a server-side proxy such as a Cloudflare Worker, Vercel Function, or another backend.
 
@@ -61,7 +61,7 @@ Some AI providers may block direct browser requests via CORS. In that case, use 
 ## Files
 
 ```text
-AppGPPT/
+AppGPT/
 ├── index.html
 ├── styles.css
 ├── app.js
@@ -89,4 +89,4 @@ AppGPPT/
 
 ## License
 
-MIT
+Apache License 2.0
