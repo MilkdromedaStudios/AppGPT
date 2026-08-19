@@ -103,7 +103,7 @@ function updateTelegramButtons() {
     else telegram.BackButton?.show?.();
     if (telegram.MainButton?.setParams) {
       telegram.MainButton.setParams({
-        text: currentChat?.project?.html ? "✦ NEW APP" : "✦ CREATE APP",
+        text: "✦ CREATE APP",
         is_visible: activeView === "build",
         is_active: !busy,
         has_shine_effect: true
@@ -191,8 +191,9 @@ async function createFromSetupSheet() {
     extra ? `Extra instructions: ${extra}` : "",
     "Generate this as a Telegram Mini App."
   ].filter(Boolean).join("\n");
-  els.prompt.value = request;
   closeCreateSheet();
+  if (currentChat) await newChat();
+  els.prompt.value = request;
   await generateHtmlArtifact(request, { appName:name, source:"guided setup" });
 }
 
@@ -260,7 +261,7 @@ async function generateHtmlArtifact(request, meta = {}) {
     validateHtmlArtifact(html);
 
     const now = new Date().toISOString();
-    const version = (currentChat?.artifacts?.length || 0) + 1;
+    const version = nextArtifactVersion(currentChat);
     const artifact = makeArtifact(html, version, now);
     const chatId = currentChat?.id || makeId();
     const title = currentChat?.title || meta.appName || inferName(request);
@@ -318,7 +319,7 @@ async function editApp() {
     validateHtmlArtifact(html);
 
     const now = new Date().toISOString();
-    const version = (currentChat.artifacts?.length || 0) + 1;
+    const version = nextArtifactVersion(currentChat);
     const artifact = makeArtifact(html, version, now);
     currentChat.updatedAt = now;
     currentChat.messages.push({ id:makeId(), role:"user", content:request, ts:now });
@@ -340,6 +341,11 @@ async function editApp() {
     toggleBusy(els.editBtn, false, "Apply edit");
     updateTelegramButtons();
   }
+}
+
+function nextArtifactVersion(chat) {
+  const versions = (chat?.artifacts || []).map(a => Number(a.version) || 0);
+  return (versions.length ? Math.max(...versions) : 0) + 1;
 }
 
 function makeArtifact(content, version, ts) {
