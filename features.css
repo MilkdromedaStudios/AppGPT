@@ -1,0 +1,26 @@
+/* Persistent chats + donations */
+.session-panel { margin-top:18px; }
+.session-head { align-items:center; }
+.session-messages { max-height:310px; overflow:auto; display:flex; flex-direction:column; gap:10px; padding-right:4px; }
+.session-empty { color:var(--muted); font-size:11px; text-align:center; padding:28px; border:1px dashed var(--line); border-radius:15px; }
+.session-message { max-width:78%; border:1px solid var(--line); border-radius:16px; padding:10px 12px; }
+.session-message.user { align-self:flex-end; background:rgba(139,124,255,.12); border-bottom-right-radius:5px; }
+.session-message.assistant { align-self:flex-start; background:rgba(255,255,255,.035); border-bottom-left-radius:5px; }
+.session-message span { display:block; font-size:9px; font-weight:800; color:#aab2c4; margin-bottom:5px; }
+.session-message p { margin:0; font-size:11px; line-height:1.55; color:#e7eaf2; white-space:pre-wrap; }
+.history-note { margin:-4px 0 18px; padding:12px 14px; border-radius:14px; color:#aeb6c8; background:rgba(255,255,255,.025); border:1px solid var(--line); font-size:10px; line-height:1.55; }
+.chat-card.active-chat { border-color:rgba(139,124,255,.5); box-shadow:0 0 0 1px rgba(139,124,255,.15), 0 15px 40px rgba(0,0,0,.18); }
+.donate-hero { margin-bottom:18px; }
+.donation-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+.donation-card { min-height:300px; display:flex; flex-direction:column; }
+.donation-card p { color:var(--muted); font-size:11px; line-height:1.65; }
+.donation-icon { width:46px; height:46px; display:grid; place-items:center; font-size:23px; border-radius:15px; background:rgba(139,124,255,.12); margin-bottom:15px; }
+.stars-card .donation-icon { background:rgba(255,199,104,.12); }
+.donate-amounts { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; margin-top:auto; }
+.donate-amount { color:#f2f4f8; border:1px solid var(--line); border-radius:12px; background:rgba(255,255,255,.045); padding:12px 10px; font-weight:800; font-size:11px; }
+.donate-amount:hover { border-color:rgba(139,124,255,.5); background:rgba(139,124,255,.09); transform:translateY(-1px); }
+.donation-card > .primary-btn { margin-top:auto; align-self:flex-start; }
+.donation-status { margin:15px 4px 0; min-height:22px; }
+.donation-config-note { margin-top:10px; color:#aab2c4; font-size:10px; line-height:1.6; }
+@media (max-width:1000px) { .donation-grid { grid-template-columns:1fr; } .donation-card { min-height:220px; } }
+@media (max-width:700px) { .session-message { max-width:90%; } .donate-amounts { grid-template-columns:repeat(2,1fr); } }
