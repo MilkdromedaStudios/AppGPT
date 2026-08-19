@@ -1,1 +1,269 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><meta name="theme-color" content="#0b1020" /><meta name="description" content="AppGPT — build Telegram Mini Apps with your own AI provider." /><title>AppGPT — AI Telegram Mini App Builder</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="styles.css" /><script src="https://telegram.org/js/telegram-web-app.js"></script></head><body><div class="ambient ambient-a"></div><div class="ambient ambient-b"></div><div class="shell"><aside class="sidebar glass"><div class="brand"><div class="logo">A</div><div><div class="brand-title">AppGPT</div><div class="brand-sub">Telegram AI Builder</div></div></div><nav class="nav"><button class="nav-item active" data-view="build"><span>✦</span> Build</button><button class="nav-item" data-view="projects"><span>◫</span> Projects</button><button class="nav-item" data-view="settings"><span>⚙</span> Provider</button><button class="nav-item" data-view="publish"><span>↗</span> Publish</button></nav><div class="sidebar-foot"><div class="status-dot-wrap"><span class="status-dot"></span><span id="providerBadge">No provider</span></div><span class="tiny">Keys stay in this browser.</span></div></aside><main class="main"><header class="topbar"><div><p class="eyebrow">AI MINI APP STUDIO</p><h1 id="pageTitle">Build a Telegram app</h1></div><button class="ghost-btn" id="newProjectBtn">+ New</button></header><section id="view-build" class="view active"><div class="build-grid"><section class="panel glass prompt-panel"><div class="panel-head"><div><p class="kicker">1. DESCRIBE</p><h2>What should your app do?</h2></div><span class="pill">Telegram Mini App</span></div><textarea id="promptInput" class="prompt-input" placeholder="Example: Build a sleek study assistant with flashcards, a quiz mode, streaks, and an AI tutor. Use a dark glass UI and Telegram theme colors."></textarea><div class="suggestions"><button class="chip">Study assistant</button><button class="chip">AI image helper</button><button class="chip">Habit tracker</button><button class="chip">Game leaderboard</button></div><div class="build-actions"><div class="model-summary" id="modelSummary">Set a provider first</div><button id="buildBtn" class="primary-btn">✦ Generate app</button></div></section><section class="panel glass preview-panel"><div class="panel-head preview-head"><div><p class="kicker">2. PREVIEW</p><h2 id="previewTitle">Untitled app</h2></div><div class="preview-actions"><button id="openPreviewBtn" class="icon-btn" title="Open preview">↗</button><button id="downloadBtn" class="icon-btn" title="Download HTML">↓</button></div></div><div class="phone-wrap"><div class="phone"><div class="phone-bar"><span></span><strong>Telegram</strong><span>•••</span></div><iframe id="previewFrame" title="Generated Mini App preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"></iframe></div><div id="previewEmpty" class="preview-empty"><div class="preview-spark">✦</div><h3>Your app appears here</h3><p>Connect an AI provider, describe an idea, and generate a working single-file Mini App.</p></div></div></section></div><section class="panel glass edit-panel" id="editPanel"><div><p class="kicker">3. ITERATE</p><h2>Edit with AI</h2></div><div class="edit-row"><input id="editInput" type="text" placeholder="Make the cards more glassy, add a leaderboard, change the layout..." /><button id="editBtn" class="secondary-btn">Apply edit</button></div></section></section><section id="view-settings" class="view"><section class="panel glass settings-card"><div class="panel-head"><div><p class="kicker">AI PROVIDER</p><h2>Bring your own API key</h2></div><span class="pill safe">Browser-only</span></div><div class="warning"><strong>Important:</strong> GitHub Pages has no secure server-side secret storage. AppGPT uses your key only from your browser to call the provider you choose. Never ship a private API key inside a public generated app.</div><div class="form-grid"><label>Provider<select id="providerSelect"></select></label><label>Model<input id="modelInput" type="text" autocomplete="off" /></label><label class="wide">API key<div class="secret-row"><input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your provider API key" /><button id="toggleKeyBtn" class="icon-btn" type="button">◉</button></div></label><label class="wide">Base URL<input id="baseUrlInput" type="url" autocomplete="off" /></label></div><div class="settings-actions"><label class="remember"><input id="rememberKey" type="checkbox" /> Remember key on this device</label><div><button id="testProviderBtn" class="ghost-btn">Test connection</button><button id="saveProviderBtn" class="primary-btn small">Save provider</button></div></div><div id="providerStatus" class="inline-status"></div></section><section class="panel glass provider-list-card"><p class="kicker">SUPPORTED</p><h2>Provider presets</h2><div id="providerCards" class="provider-cards"></div></section></section><section id="view-projects" class="view"><section class="panel glass"><div class="panel-head"><div><p class="kicker">LOCAL PROJECTS</p><h2>Your generated apps</h2></div><span class="pill">Saved in browser</span></div><div id="projectGrid" class="project-grid"></div><div id="projectsEmpty" class="empty-state"><div>◫</div><h3>No projects yet</h3><p>Generate your first Telegram Mini App from the Build tab.</p></div></section></section><section id="view-publish" class="view"><div class="publish-grid"><section class="panel glass"><p class="kicker">PUBLISH</p><h2>Put your Mini App online</h2><p class="muted">GitHub Pages can host the generated HTML, CSS, and JavaScript. It cannot safely host private API keys or backend code.</p><ol class="steps"><li><span>1</span><div><strong>Download your app</strong><p>From Preview, download the generated <code>index.html</code>.</p></div></li><li><span>2</span><div><strong>Create a GitHub repository</strong><p>Upload <code>index.html</code> to the repository root.</p></div></li><li><span>3</span><div><strong>Enable GitHub Pages</strong><p>Settings → Pages → Deploy from a branch → <code>main</code> / root.</p></div></li><li><span>4</span><div><strong>Connect BotFather</strong><p>Set the resulting HTTPS Pages URL as your bot's Mini App or menu button URL.</p></div></li></ol></section><section class="panel glass"><p class="kicker">CURRENT PROJECT</p><h2 id="publishProjectName">Nothing generated yet</h2><div class="publish-box"><span>Generated file</span><strong>index.html</strong><button id="publishDownloadBtn" class="primary-btn small">Download</button></div><div class="tip"><strong>For AI-powered public apps:</strong> use a backend/proxy (Cloudflare Worker, Vercel Function, etc.) so the provider secret is never exposed to visitors.</div></section></div></section></main></div><div id="toast" class="toast"></div><script type="module" src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="description" content="AppGPT — build Telegram Mini Apps with your own AI provider." />
+  <title>AppGPT — AI Telegram Mini App Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="features.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+
+  <div class="shell">
+    <aside class="sidebar glass">
+      <div class="brand">
+        <div class="logo">A</div>
+        <div>
+          <div class="brand-title">AppGPT</div>
+          <div class="brand-sub">Telegram AI Builder</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="build"><span>✦</span> Build</button>
+        <button class="nav-item" data-view="chats"><span>◫</span> Chats</button>
+        <button class="nav-item" data-view="settings"><span>⚙</span> Provider</button>
+        <button class="nav-item" data-view="donate"><span>♥</span> Donate</button>
+        <button class="nav-item" data-view="publish"><span>↗</span> Publish</button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="status-dot-wrap"><span class="status-dot"></span><span id="providerBadge">No provider</span></div>
+        <span class="tiny">Chats persist on this device.</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">AI MINI APP STUDIO</p>
+          <h1 id="pageTitle">Build a Telegram app</h1>
+        </div>
+        <button class="ghost-btn" id="newChatBtn">+ New chat</button>
+      </header>
+
+      <section id="view-build" class="view active">
+        <div class="build-grid">
+          <section class="panel glass prompt-panel">
+            <div class="panel-head">
+              <div>
+                <p class="kicker">1. DESCRIBE</p>
+                <h2>What should your app do?</h2>
+              </div>
+              <span class="pill">Telegram Mini App</span>
+            </div>
+
+            <textarea id="promptInput" class="prompt-input" placeholder="Example: Build a sleek study assistant with flashcards, a quiz mode, streaks, and an AI tutor. Use a dark glass UI and Telegram theme colors."></textarea>
+
+            <div class="suggestions">
+              <button class="chip">Study assistant</button>
+              <button class="chip">AI image helper</button>
+              <button class="chip">Habit tracker</button>
+              <button class="chip">Game leaderboard</button>
+            </div>
+
+            <div class="build-actions">
+              <div class="model-summary" id="modelSummary">Set a provider first</div>
+              <button id="buildBtn" class="primary-btn">✦ Generate app</button>
+            </div>
+          </section>
+
+          <section class="panel glass preview-panel">
+            <div class="panel-head preview-head">
+              <div>
+                <p class="kicker">2. PREVIEW</p>
+                <h2 id="previewTitle">Untitled app</h2>
+              </div>
+              <div class="preview-actions">
+                <button id="openPreviewBtn" class="icon-btn" title="Open preview">↗</button>
+                <button id="downloadBtn" class="icon-btn" title="Download HTML">↓</button>
+              </div>
+            </div>
+
+            <div class="phone-wrap">
+              <div class="phone">
+                <div class="phone-bar"><span></span><strong>Telegram</strong><span>•••</span></div>
+                <iframe id="previewFrame" title="Generated Mini App preview" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"></iframe>
+              </div>
+              <div id="previewEmpty" class="preview-empty">
+                <div class="preview-spark">✦</div>
+                <h3>Your app appears here</h3>
+                <p>Connect an AI provider, describe an idea, and generate a working single-file Mini App.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel glass edit-panel" id="editPanel">
+          <div>
+            <p class="kicker">3. CONTINUE</p>
+            <h2>Keep building in this chat</h2>
+          </div>
+          <div class="edit-row">
+            <input id="editInput" type="text" placeholder="Add login, make the cards glassier, create a leaderboard, fix a bug..." />
+            <button id="editBtn" class="secondary-btn">Apply edit</button>
+          </div>
+        </section>
+
+        <section class="panel glass session-panel">
+          <div class="panel-head session-head">
+            <div>
+              <p class="kicker">SESSION</p>
+              <h2 id="sessionName">New session</h2>
+            </div>
+            <span id="sessionMeta" class="tiny">Not saved yet</span>
+          </div>
+          <div id="sessionMessages" class="session-messages">
+            <div class="session-empty">Your build conversation will be saved here automatically.</div>
+          </div>
+        </section>
+      </section>
+
+      <section id="view-settings" class="view">
+        <section class="panel glass settings-card">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">AI PROVIDER</p>
+              <h2>Bring your own API key</h2>
+            </div>
+            <span class="pill safe">Device-local</span>
+          </div>
+
+          <div class="warning">
+            <strong>Storage:</strong> In Telegram 9.0+, AppGPT uses Telegram SecureStorage when possible for a remembered API key. In a normal browser, it falls back to browser storage. Never put provider keys or bot tokens inside generated public apps.
+          </div>
+
+          <div class="form-grid">
+            <label>
+              Provider
+              <select id="providerSelect"></select>
+            </label>
+            <label>
+              Model
+              <input id="modelInput" type="text" autocomplete="off" />
+            </label>
+            <label class="wide">
+              API key
+              <div class="secret-row">
+                <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste your provider API key" />
+                <button id="toggleKeyBtn" class="icon-btn" type="button">◉</button>
+              </div>
+            </label>
+            <label class="wide">
+              Base URL
+              <input id="baseUrlInput" type="url" autocomplete="off" />
+            </label>
+          </div>
+
+          <div class="settings-actions">
+            <label class="remember"><input id="rememberKey" type="checkbox" /> Remember key on this device</label>
+            <div>
+              <button id="testProviderBtn" class="ghost-btn">Test connection</button>
+              <button id="saveProviderBtn" class="primary-btn small">Save provider</button>
+            </div>
+          </div>
+          <div id="providerStatus" class="inline-status"></div>
+        </section>
+
+        <section class="panel glass provider-list-card">
+          <p class="kicker">SUPPORTED</p>
+          <h2>Provider presets</h2>
+          <div id="providerCards" class="provider-cards"></div>
+        </section>
+      </section>
+
+      <section id="view-chats" class="view">
+        <section class="panel glass">
+          <div class="panel-head">
+            <div>
+              <p class="kicker">PERSISTENT CHATS</p>
+              <h2>Continue any build session</h2>
+            </div>
+            <span class="pill">IndexedDB + Telegram storage</span>
+          </div>
+          <div class="history-note">Chats, messages, and generated HTML are stored locally on this device. Opening AppGPT again restores your most recent session automatically.</div>
+          <div id="chatGrid" class="project-grid"></div>
+          <div id="chatsEmpty" class="empty-state">
+            <div>◫</div>
+            <h3>No chats yet</h3>
+            <p>Generate your first Telegram Mini App. AppGPT will save the session automatically.</p>
+          </div>
+        </section>
+      </section>
+
+      <section id="view-donate" class="view">
+        <section class="panel glass donate-hero">
+          <p class="kicker">SUPPORT THE PROJECT</p>
+          <h2>Donate to AppGPT ♥</h2>
+          <p class="muted">Choose Telegram Stars for native Telegram support, TON for crypto, or a card/support link for real money. Donations do not unlock digital features.</p>
+        </section>
+
+        <div class="donation-grid">
+          <section class="panel glass donation-card stars-card">
+            <div class="donation-icon">⭐</div>
+            <h2>Telegram Stars</h2>
+            <p>Support AppGPT without leaving Telegram. Stars invoices must be created by your bot/backend so the bot token stays secret.</p>
+            <div id="starAmounts" class="donate-amounts"></div>
+          </section>
+
+          <section class="panel glass donation-card">
+            <div class="donation-icon">💎</div>
+            <h2>TON</h2>
+            <p>Send TON directly to the public receiving wallet configured for AppGPT.</p>
+            <div id="tonAmounts" class="donate-amounts"></div>
+          </section>
+
+          <section class="panel glass donation-card">
+            <div class="donation-icon">💳</div>
+            <h2>Card / real money</h2>
+            <p>Open an external public donation or checkout page such as a Stripe Payment Link or creator-support page.</p>
+            <button id="cardDonateBtn" class="primary-btn">Donate by card</button>
+          </section>
+        </div>
+        <div id="donationStatus" class="inline-status donation-status"></div>
+        <div class="panel glass donation-config-note">
+          <strong>Owner setup:</strong> donation destinations are intentionally stored in <code>config.js</code>. Public receiving addresses/URLs can go there; bot tokens and payment secrets must never be committed to GitHub Pages.
+        </div>
+      </section>
+
+      <section id="view-publish" class="view">
+        <div class="publish-grid">
+          <section class="panel glass">
+            <p class="kicker">PUBLISH</p>
+            <h2>Put your Mini App online</h2>
+            <p class="muted">GitHub Pages can host the generated HTML, CSS, and JavaScript. It cannot safely host private API keys, Telegram bot tokens, Stars invoice logic, or other backend secrets.</p>
+            <ol class="steps">
+              <li><span>1</span><div><strong>Download your app</strong><p>From Preview, download the generated <code>index.html</code>.</p></div></li>
+              <li><span>2</span><div><strong>Create a GitHub repository</strong><p>Upload <code>index.html</code> to the repository root.</p></div></li>
+              <li><span>3</span><div><strong>Enable GitHub Pages</strong><p>Settings → Pages → Deploy from a branch → <code>main</code> / root.</p></div></li>
+              <li><span>4</span><div><strong>Connect BotFather</strong><p>Set the resulting HTTPS Pages URL as your bot's Mini App or menu button URL.</p></div></li>
+            </ol>
+          </section>
+
+          <section class="panel glass">
+            <p class="kicker">CURRENT CHAT</p>
+            <h2 id="publishProjectName">Nothing generated yet</h2>
+            <div class="publish-box">
+              <span>Generated file</span>
+              <strong>index.html</strong>
+              <button id="publishDownloadBtn" class="primary-btn small">Download</button>
+            </div>
+            <div class="tip"><strong>For public AI apps:</strong> use a backend/proxy (Cloudflare Worker, Vercel Function, etc.) so provider secrets are never exposed to visitors.</div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
