@@ -79,3 +79,7 @@ function manifest(){
 }
 function slug(v){return String(v).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,50)||'app'}
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+// Load the nightly Template Studio as a self-contained enhancement without touching production entry points.
+if(!document.querySelector('link[data-night-templates]')){const l=document.createElement('link');l.rel='stylesheet';l.href='./night-templates.css';l.dataset.nightTemplates='true';document.head.append(l)}
+import('./night-templates.js').catch(error=>console.warn('Night template studio unavailable',error));
