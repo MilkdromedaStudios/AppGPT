@@ -22,6 +22,7 @@ init();
 
 function init() {
   loadAppearanceCss();
+  markLiquidSurfaces();
   mountDock();
   setupProviderModels();
   openRequestedView();
@@ -38,6 +39,12 @@ function loadAppearanceCss() {
   link.href = APPEARANCE_CSS;
   link.dataset.appgptAppearance = 'true';
   document.head.append(link);
+}
+
+function markLiquidSurfaces() {
+  document.querySelectorAll('.sidebar.glass, .panel.glass, .app-sheet.glass').forEach(element => {
+    element.classList.add('liquidGL');
+  });
 }
 
 function readTheme() {
@@ -91,6 +98,7 @@ function setupProviderModels() {
     hint.hidden = !isHF;
   };
   provider.addEventListener('change', () => setTimeout(refresh, 0));
+  new MutationObserver(refresh).observe(provider, { childList: true });
   refresh();
 }
 
@@ -175,17 +183,17 @@ async function initLiquidGL() {
     liquidInstance = liquidGL({
       snapshot: 'body',
       target: '.liquidGL',
-      resolution: Math.min(1.6, Math.max(1, (window.devicePixelRatio || 1) * 0.8)),
-      refraction: 0.018,
-      aberration: 0.035,
-      bevelDepth: 0.075,
-      bevelWidth: 0.16,
-      frost: root.dataset.theme === 'light' ? 0.8 : 1.2,
+      resolution: Math.min(1.45, Math.max(1, (window.devicePixelRatio || 1) * 0.72)),
+      refraction: 0.014,
+      aberration: 0.025,
+      bevelDepth: 0.07,
+      bevelWidth: 0.15,
+      frost: root.dataset.theme === 'light' ? 0.65 : 1.05,
       shadow: true,
       specular: !reduced,
       reveal: reduced ? 'none' : 'fade',
       tilt: false,
-      magnify: 1.01,
+      magnify: 1.006,
       on: {
         init() {
           liquidReady = true;
