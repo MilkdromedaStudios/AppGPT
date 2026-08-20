@@ -1,3 +1,7 @@
+import './night-reliability.js';
+if(!document.querySelector('link[data-night-reliability]')){const l=document.createElement('link');l.rel='stylesheet';l.href='./night-reliability.css';l.dataset.nightReliability='1';document.head.append(l)}
+if(!document.querySelector('link[rel="manifest"]')){const l=document.createElement('link');l.rel='manifest';l.href='./app.webmanifest';document.head.append(l)}
+if(!document.querySelector('link[rel="icon"]')){const l=document.createElement('link');l.rel='icon';l.href='./app-icon.svg';l.type='image/svg+xml';document.head.append(l)}
 import { PROVIDERS } from './providers.js';
 import { toast } from './app-state.js';
 
