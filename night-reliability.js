@@ -17,7 +17,7 @@ function mountStatus(){
   const b=document.createElement('button'); b.id='reliabilityStatus'; b.className='reliability-status'; b.type='button'; b.innerHTML='<i></i><span>Checking…</span>'; b.onclick=openPanel;
   const more=$('#workspaceMoreBtn'); head.insertBefore(b,more||null);
   const menu=$('#workspaceMoreMenu');
-  if(menu&&!menu.querySelector('[data-reliability]')){const x=document.createElement('button');x.dataset.reliability='1';x.innerHTML='<span>◌</span>Offline & reliability';x.onclick=e=>{e.stopPropagation();menu.hidden=true;openPanel()};menu.append(x)}
+  if(menu&&!menu.querySelector('[data-reliability]')){const x=document.createElement('button');x.dataset.reliability='1';x.innerHTML='<span>◌</span>Offline & reliability';x.onclick=e=>{e.stopPropagation();$('#workspaceMoreBtn')?.click();openPanel()};menu.append(x)}
 }
 function mountPanel(){
   if($('#reliabilityBackdrop'))return;
