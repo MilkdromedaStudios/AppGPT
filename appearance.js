@@ -1,6 +1,17 @@
 const THEME_KEY = 'appgpt_theme';
 const APPEARANCE_CSS = './appearance.css';
 const LIQUID_GL_URL = 'https://cdn.jsdelivr.net/npm/liquid-gl@2.0.1/liquidGL.js';
+const HF_MODELS = [
+  'Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest',
+  'openai/gpt-oss-120b:fastest',
+  'deepseek-ai/DeepSeek-R1:fastest',
+  'Qwen/Qwen2.5-Coder-32B-Instruct:fastest',
+  'Qwen/Qwen3-4B-Thinking-2507:fastest',
+  'Qwen/Qwen2.5-7B-Instruct-1M:fastest',
+  'google/gemma-2-2b-it:fastest',
+  'zai-org/GLM-4.5V:fastest',
+  'Qwen/Qwen2.5-VL-3B-Instruct:fastest'
+];
 const root = document.documentElement;
 const tg = window.Telegram?.WebApp;
 let liquidReady = false;
@@ -11,6 +22,7 @@ init();
 function init() {
   loadAppearanceCss();
   mountDock();
+  setupProviderModels();
   applyTheme(readTheme(), false);
   if (document.readyState === 'complete') initLiquidGL();
   else window.addEventListener('load', () => initLiquidGL(), { once: true });
@@ -29,6 +41,43 @@ function loadAppearanceCss() {
 function readTheme() {
   try { return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; }
   catch { return 'dark'; }
+}
+
+function setupProviderModels() {
+  const provider = document.getElementById('providerSelect');
+  const model = document.getElementById('modelInput');
+  if (!provider || !model) return;
+
+  let list = document.getElementById('appgptModelSuggestions');
+  if (!list) {
+    list = document.createElement('datalist');
+    list.id = 'appgptModelSuggestions';
+    document.body.append(list);
+  }
+  model.setAttribute('list', list.id);
+
+  let hint = document.getElementById('providerModelHint');
+  if (!hint) {
+    hint = document.createElement('span');
+    hint.id = 'providerModelHint';
+    hint.className = 'provider-model-hint';
+    model.insertAdjacentElement('afterend', hint);
+  }
+
+  const refresh = () => {
+    const isHF = provider.value === 'huggingface';
+    list.innerHTML = (isHF ? HF_MODELS : []).map(value => `<option value="${escapeAttr(value)}"></option>`).join('');
+    hint.textContent = isHF
+      ? 'Hugging Face: choose a suggested model or type any chat-capable model ID. Add :fastest, :cheapest, or :preferred to control routing.'
+      : '';
+    hint.hidden = !isHF;
+  };
+  provider.addEventListener('change', () => setTimeout(refresh, 0));
+  refresh();
+}
+
+function escapeAttr(value) {
+  return String(value).replace(/[&<>"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[char]));
 }
 
 function mountDock() {
