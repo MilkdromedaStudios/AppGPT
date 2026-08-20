@@ -1,0 +1,15 @@
+{
+  "name": "AppGPT — Telegram Mini App Builder",
+  "short_name": "AppGPT",
+  "description": "Build, edit, debug, preview, and publish Telegram Mini Apps with AI.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#070b14",
+  "theme_color": "#0a0f1e",
+  "orientation": "any",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    {"src":"./app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
