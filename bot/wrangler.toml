@@ -1,0 +1,7 @@
+name = "appgpt-bot"
+main = "worker.js"
+compatibility_date = "2026-08-19"
+
+[vars]
+APP_URL = "https://milkdromedastudios.github.io/AppGPT/"
+GITHUB_URL = "https://github.com/MilkdromedaStudios/AppGPT"
