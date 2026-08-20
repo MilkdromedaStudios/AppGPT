@@ -12,6 +12,7 @@ const HF_MODELS = [
   'zai-org/GLM-4.5V:fastest',
   'Qwen/Qwen2.5-VL-3B-Instruct:fastest'
 ];
+const VALID_VIEWS = new Set(['build','chats','templates','debug','publish','settings']);
 const root = document.documentElement;
 const tg = window.Telegram?.WebApp;
 let liquidReady = false;
@@ -23,6 +24,7 @@ function init() {
   loadAppearanceCss();
   mountDock();
   setupProviderModels();
+  openRequestedView();
   applyTheme(readTheme(), false);
   if (document.readyState === 'complete') initLiquidGL();
   else window.addEventListener('load', () => initLiquidGL(), { once: true });
@@ -41,6 +43,22 @@ function loadAppearanceCss() {
 function readTheme() {
   try { return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; }
   catch { return 'dark'; }
+}
+
+function openRequestedView() {
+  let requested = '';
+  try { requested = new URL(location.href).searchParams.get('view') || ''; } catch {}
+  if (!VALID_VIEWS.has(requested) || requested === 'build') return;
+  let attempts = 0;
+  const tryOpen = () => {
+    const button = document.querySelector(`.nav-item[data-view="${requested}"]`);
+    if (button && typeof button.onclick === 'function') {
+      button.click();
+      return;
+    }
+    if (++attempts < 30) setTimeout(tryOpen, 80);
+  };
+  setTimeout(tryOpen, 0);
 }
 
 function setupProviderModels() {
