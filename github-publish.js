@@ -101,3 +101,9 @@ function utf8Base64(text){
   for(let i=0;i<bytes.length;i+=size)binary+=String.fromCharCode(...bytes.subarray(i,i+size));
   return btoa(binary);
 }
+
+// Nightly deployment UI is loaded from this publishing module so the stable HTML shell stays untouched.
+if(typeof document!=='undefined'){
+  if(!document.querySelector('link[data-night-publish]')){const link=document.createElement('link');link.rel='stylesheet';link.href='./night-publish.css';link.dataset.nightPublish='true';document.head.append(link)}
+  import('./night-publish.js').catch(error=>console.warn('Deployment kit unavailable',error));
+}
