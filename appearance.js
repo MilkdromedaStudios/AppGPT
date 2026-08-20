@@ -129,10 +129,18 @@ function escapeAttr(value) {
 
 function mountDock() {
   if (document.getElementById('liquidDock')) return;
+
   const dock = document.createElement('div');
   dock.id = 'liquidDock';
-  dock.className = 'liquid-dock liquidGL';
+  dock.className = 'liquid-dock';
   dock.setAttribute('aria-label', 'AppGPT quick controls');
+
+  // LiquidGL gets its own decorative layer. It never owns or intercepts the controls.
+  const lens = document.createElement('div');
+  lens.id = 'liquidDockLens';
+  lens.className = 'liquid-lens liquidGL';
+  lens.setAttribute('aria-hidden', 'true');
+  dock.append(lens);
 
   const content = document.createElement('div');
   content.className = 'liquid-content';
@@ -144,8 +152,11 @@ function mountDock() {
   theme.className = 'theme-toggle';
   theme.type = 'button';
   theme.innerHTML = '<span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark</span>';
-  theme.addEventListener('click', () => {
-    applyTheme(root.dataset.theme === 'light' ? 'dark' : 'light', true);
+  theme.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const next = root.dataset.theme === 'light' ? 'dark' : 'light';
+    applyTheme(next, true);
     try { tg?.HapticFeedback?.selectionChanged?.(); } catch {}
   });
   content.append(theme);
@@ -156,14 +167,22 @@ function mountDock() {
   badge.dataset.state = 'loading';
   badge.innerHTML = '<i></i><span>LiquidGL</span>';
   content.append(badge);
+
   dock.append(content);
   document.body.append(dock);
 }
 
 function applyTheme(theme, persist = true) {
   const next = theme === 'light' ? 'light' : 'dark';
+
   root.dataset.theme = next;
-  if (persist) { try { localStorage.setItem(THEME_KEY, next); } catch {} }
+  root.style.colorScheme = next;
+  if (document.body) document.body.dataset.theme = next;
+
+  if (persist) {
+    try { localStorage.setItem(THEME_KEY, next); } catch {}
+  }
+
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = next === 'light' ? '#edf3fb' : '#070b14';
 
@@ -171,6 +190,7 @@ function applyTheme(theme, persist = true) {
   if (button) {
     button.setAttribute('aria-label', next === 'light' ? 'Switch to dark mode' : 'Switch to light mode');
     button.setAttribute('aria-pressed', next === 'light' ? 'true' : 'false');
+    button.dataset.theme = next;
     const icon = button.querySelector('.theme-icon');
     const label = button.querySelector('.theme-label');
     if (icon) icon.textContent = next === 'light' ? '☀' : '☾';
@@ -183,13 +203,18 @@ function applyTheme(theme, persist = true) {
     tg?.setBackgroundColor?.(bg);
     tg?.setBottomBarColor?.(bg);
   } catch {}
-  recaptureSoon();
+
+  // Repaint immediately before asking the WebGL lens for a fresh snapshot.
+  void root.offsetWidth;
+  requestAnimationFrame(() => requestAnimationFrame(recaptureSoon));
+  window.dispatchEvent(new CustomEvent('appgpt-theme-changed', { detail: { theme: next } }));
 }
 
 async function initLiquidGL() {
   const dock = document.getElementById('liquidDock');
+  const lens = document.getElementById('liquidDockLens');
   const badge = document.getElementById('liquidGlBadge');
-  if (!dock) return;
+  if (!dock || !lens) return;
 
   try {
     const module = await import(LIQUID_GL_URL);
@@ -197,22 +222,20 @@ async function initLiquidGL() {
     if (typeof liquidGL !== 'function') throw new Error('liquidGL did not load correctly');
     const reduced = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
 
-    // IMPORTANT: LiquidGL is intentionally restricted to the small top dock.
-    // Applying its WebGL lens to large layout panels can cover their child UI.
     liquidInstance = liquidGL({
       snapshot: 'body',
-      target: '#liquidDock',
-      resolution: Math.min(1.35, Math.max(1, (window.devicePixelRatio || 1) * 0.65)),
-      refraction: 0.01,
-      aberration: 0.018,
-      bevelDepth: 0.055,
-      bevelWidth: 0.13,
-      frost: root.dataset.theme === 'light' ? 0.45 : 0.72,
+      target: '#liquidDockLens',
+      resolution: Math.min(1.3, Math.max(1, (window.devicePixelRatio || 1) * 0.62)),
+      refraction: 0.009,
+      aberration: 0.014,
+      bevelDepth: 0.05,
+      bevelWidth: 0.12,
+      frost: 0.56,
       shadow: true,
       specular: !reduced,
       reveal: reduced ? 'none' : 'fade',
       tilt: false,
-      magnify: 1.003,
+      magnify: 1.002,
       on: {
         init() {
           liquidReady = true;
@@ -241,7 +264,7 @@ function recaptureSoon() {
       window.__liquidGLRenderer__?.captureSnapshot?.();
       window.__liquidGLRenderer__?.render?.();
     } catch {}
-  }, 90);
+  }, 120);
 }
 
 export function getAppearanceState() {
