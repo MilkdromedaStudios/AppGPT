@@ -1,207 +1,50 @@
-import { PROVIDERS, callProvider } from "./providers.js";
-import { saveChat, getChat, listChats, deleteChat, getLastChatId, setLastChatId, saveApiKey, loadApiKey } from "./storage.js";
-
-const $ = (id) => document.getElementById(id);
-const els = {
-  pageTitle: $("pageTitle"), providerBadge: $("providerBadge"), prompt: $("promptInput"), build: $("buildBtn"),
-  modelSummary: $("modelSummary"), previewFrame: $("previewFrame"), previewEmpty: $("previewEmpty"), previewTitle: $("previewTitle"),
-  openPreview: $("openPreviewBtn"), copyHtml: $("copyHtmlBtn"), download: $("downloadBtn"), editInput: $("editInput"), editBtn: $("editBtn"),
-  providerSelect: $("providerSelect"), modelInput: $("modelInput"), apiKey: $("apiKeyInput"), baseUrl: $("baseUrlInput"),
-  rememberKey: $("rememberKey"), toggleKey: $("toggleKeyBtn"), testProvider: $("testProviderBtn"), saveProvider: $("saveProviderBtn"),
-  providerStatus: $("providerStatus"), providerCards: $("providerCards"), chatGrid: $("chatGrid"), chatsEmpty: $("chatsEmpty"),
-  publishProjectName: $("publishProjectName"), publishDownload: $("publishDownloadBtn"), publishCopy: $("publishCopyBtn"), toast: $("toast"),
-  newChat: $("newChatBtn"), telegramCreate: $("telegramCreateBtn"), sessionMessages: $("sessionMessages"), sessionName: $("sessionName"), sessionMeta: $("sessionMeta"),
-  modal: $("createAppModal"), modalClose: $("closeCreateAppBtn"), modalCancel: $("cancelCreateAppBtn"), modalConfirm: $("confirmCreateAppBtn"),
-  appName: $("appNameInput"), appDescription: $("appDescriptionInput"), appStyle: $("appStyleInput"), appExtra: $("appExtraInput")
-};
-
-const STORAGE_CONFIG = "appgpt_provider_config";
-const MAX_ARTIFACTS_PER_CHAT = 20;
-let currentChat = null;
-let busy = false;
-let activeView = "build";
-const telegram = window.Telegram?.WebApp;
-
+import { PROVIDERS,callProvider } from './providers.js';
+import { saveChat,getChat,listChats,deleteChat,getLastChatId,setLastChatId,saveApiKey,loadApiKey,saveCustomTemplate,listCustomTemplates,deleteCustomTemplate,saveGithubToken,loadGithubToken } from './storage.js';
+import { BUILTIN_TEMPLATES,validateTemplate,templateToJson } from './templates.js';
+import { publishToGithubPages,verifyGithubToken } from './github-publish.js';
+import { auditHtml,preparePreview,applyVisualPatch } from './preview-tools.js';
+import { S,E,tg,config,latest,artifact,id,esc,slug,infer,toast,status,progress,haptic,success,failHaptic,bytes,download } from './app-state.js';
+import { draft,ensureDraft,runBuild,editCurrent,autoRepair,saveManual } from './build-engine.js';
+const CFG='appgpt_provider_config';
 init();
-
-async function init() {
-  setupTelegramShell();
-  fillProviders();
-  await restoreConfig();
-  renderProviderCards();
-  bindNavigation();
-  bindActions();
-  updateProviderUI();
-  await restoreLastSession();
-  await renderChats();
-  updateTelegramButtons();
-}
-
-function setupTelegramShell() {
-  if (!telegram) return;
-  try {
-    telegram.ready(); telegram.expand(); telegram.enableClosingConfirmation?.();
-    telegram.setHeaderColor?.("secondary_bg_color"); telegram.setBackgroundColor?.("bg_color"); telegram.setBottomBarColor?.("bottom_bar_bg_color");
-    telegram.MainButton?.setParams?.({ text:"✦ CREATE APP", is_visible:true, is_active:true, has_shine_effect:true });
-    telegram.MainButton?.onClick?.(startNativeCreateFlow);
-    if (telegram.isVersionAtLeast?.("7.10") && telegram.SecondaryButton) {
-      telegram.SecondaryButton.setParams({ text:"CHATS", position:"left", is_visible:true, is_active:true });
-      telegram.SecondaryButton.onClick(() => switchView("chats"));
-    }
-    if (telegram.isVersionAtLeast?.("7.0") && telegram.SettingsButton) {
-      telegram.SettingsButton.show(); telegram.SettingsButton.onClick(() => switchView("settings"));
-    }
-    telegram.BackButton?.onClick?.(() => switchView("build"));
-  } catch (e) { console.debug("Telegram shell setup skipped", e); }
-}
-
-function fillProviders() {
-  els.providerSelect.innerHTML = Object.entries(PROVIDERS).map(([id,p]) => `<option value="${id}">${escapeHtml(p.name)}</option>`).join("");
-}
-
-async function restoreConfig() {
-  let saved = {}; try { saved = JSON.parse(localStorage.getItem(STORAGE_CONFIG) || "{}"); } catch {}
-  const provider = saved.provider && PROVIDERS[saved.provider] ? saved.provider : "openrouter";
-  const preset = PROVIDERS[provider];
-  els.providerSelect.value = provider; els.modelInput.value = saved.model || preset.model; els.baseUrl.value = saved.baseUrl || preset.baseUrl;
-  const secret = await loadApiKey(); els.apiKey.value = secret.key || ""; els.rememberKey.checked = secret.remembered;
-}
-
-function bindNavigation() {
-  document.querySelectorAll(".nav-item").forEach(btn => btn.addEventListener("click", () => switchView(btn.dataset.view)));
-}
-function switchView(name) {
-  activeView = name;
-  document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === name));
-  document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${name}`));
-  els.pageTitle.textContent = ({build:"Build a Telegram app",chats:"Your chats",settings:"Connect an AI provider",publish:"Get your HTML file"})[name] || "AppGPT";
-  if (name === "chats") renderChats(); updateTelegramButtons();
-}
-function updateTelegramButtons() {
-  if (!telegram) return;
-  try {
-    activeView === "build" ? telegram.BackButton?.hide?.() : telegram.BackButton?.show?.();
-    telegram.MainButton?.setParams?.({ text: busy ? "BUILDING…" : "✦ CREATE APP", is_visible:activeView === "build", is_active:!busy, has_shine_effect:!busy });
-  } catch {}
-}
-
-function bindActions() {
-  els.providerSelect.addEventListener("change", () => { const p=PROVIDERS[els.providerSelect.value]; els.modelInput.value=p.model; els.baseUrl.value=p.baseUrl; });
-  els.toggleKey.addEventListener("click", () => els.apiKey.type = els.apiKey.type === "password" ? "text" : "password");
-  els.saveProvider.addEventListener("click", saveConfig); els.testProvider.addEventListener("click", testProvider);
-  els.build.addEventListener("click", generateFromPrompt); els.editBtn.addEventListener("click", editApp);
-  els.download.addEventListener("click", () => downloadArtifact(latestArtifact())); els.copyHtml.addEventListener("click", () => copyArtifact(latestArtifact()));
-  els.publishDownload.addEventListener("click", () => downloadArtifact(latestArtifact())); els.publishCopy.addEventListener("click", () => copyArtifact(latestArtifact()));
-  els.openPreview.addEventListener("click", () => openArtifactPreview(latestArtifact())); els.newChat.addEventListener("click", newChat);
-  els.telegramCreate.addEventListener("click", startNativeCreateFlow); els.modalClose.addEventListener("click", closeCreateSheet); els.modalCancel.addEventListener("click", closeCreateSheet);
-  els.modalConfirm.addEventListener("click", createFromSetupSheet); els.modal.addEventListener("click", e => { if (e.target === els.modal) closeCreateSheet(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && !els.modal.hidden) closeCreateSheet(); });
-  const map={"Study assistant":"Build a polished study assistant with flashcards, quiz mode, streak tracking, and an optional AI tutor. Use a modern Telegram-native dark interface.","AI image helper":"Build an AI image prompt helper where users choose a visual style and turn a rough idea into a detailed image prompt. Include history and copy buttons.","Habit tracker":"Build a beautiful habit tracker with daily check-ins, streaks, weekly progress, and local persistence. Make it feel native inside Telegram.","Game leaderboard":"Build a game leaderboard Mini App with player cards, ranks, score filters, mock friends data, haptics, and a futuristic competitive design."};
-  document.querySelectorAll(".chip").forEach(chip => chip.addEventListener("click", () => { els.prompt.value=map[chip.textContent.trim()]||chip.textContent.trim(); }));
-}
-
-async function startNativeCreateFlow() {
-  haptic("light");
-  if (telegram?.showPopup && telegram.isVersionAtLeast?.("6.2")) {
-    try { telegram.showPopup({title:"Create a Telegram Mini App",message:"AppGPT will create the chat immediately, then generate one complete index.html.",buttons:[{id:"continue",type:"default",text:"Set up app"},{id:"cancel",type:"cancel"}]}, id => { if(id==="continue") openCreateSheet(); }); return; } catch {}
-  }
-  openCreateSheet();
-}
-function openCreateSheet() { els.modal.hidden=false; requestAnimationFrame(()=>els.appName.focus()); }
-function closeCreateSheet() { els.modal.hidden=true; }
-async function createFromSetupSheet() {
-  const name=els.appName.value.trim(), description=els.appDescription.value.trim(), style=els.appStyle.value, extra=els.appExtra.value.trim();
-  if(!name) return toast("Give your app a name"); if(!description) return toast("Describe what the app should do");
-  const request=[`App name: ${name}`,`Purpose and features: ${description}`,`Visual style: ${style}`,extra?`Extra instructions: ${extra}`:"","Generate this as a Telegram Mini App."].filter(Boolean).join("\n");
-  closeCreateSheet(); if(currentChat) await newChat(); els.prompt.value=request; await generateHtmlArtifact(request,{appName:name,source:"guided setup"});
-}
-
-function getConfig(){const provider=els.providerSelect.value,preset=PROVIDERS[provider];return{provider,kind:preset.kind,model:els.modelInput.value.trim(),baseUrl:els.baseUrl.value.trim(),apiKey:els.apiKey.value.trim()};}
-async function saveConfig(){const c=getConfig();localStorage.setItem(STORAGE_CONFIG,JSON.stringify({provider:c.provider,model:c.model,baseUrl:c.baseUrl}));await saveApiKey(c.apiKey,els.rememberKey.checked);updateProviderUI();successHaptic();toast("Provider settings saved");}
-function updateProviderUI(){const c=getConfig(),connected=Boolean(c.apiKey&&c.model&&c.baseUrl);els.providerBadge.textContent=connected?`${PROVIDERS[c.provider].name} · ${c.model}`:"No provider";document.querySelector(".status-dot")?.classList.toggle("connected",connected);els.modelSummary.textContent=connected?`${PROVIDERS[c.provider].name} · ${c.model}`:"Set a provider first";}
-async function testProvider(){const c=getConfig();setProviderStatus("Testing…","");toggleBusy(els.testProvider,true,"Testing");try{const r=await callProvider(c,[{role:"system",content:"You are a connection test. Reply with exactly OK."},{role:"user",content:"Test connection."}],{maxTokens:30,temperature:0});setProviderStatus(`Connected — ${r.trim().slice(0,60)}`,"ok");await saveConfig();}catch(e){errorHaptic();setProviderStatus(e.message,"error");}finally{toggleBusy(els.testProvider,false,"Test connection");}}
-
-async function generateFromPrompt(){const idea=els.prompt.value.trim();if(!idea)return startNativeCreateFlow();await generateHtmlArtifact(idea,{appName:inferName(idea),source:"prompt"});}
-
-async function generateHtmlArtifact(request, meta={}) {
-  if(busy) return;
-  const c=getConfig(); if(!c.apiKey){switchView("settings");return toast("Add an API key first");}
-  busy=true; updateTelegramButtons(); toggleBusy(els.build,true,"Building index.html"); telegram?.MainButton?.showProgress?.();
-
-  const startedAt=new Date().toISOString();
-  const title=currentChat?.title || meta.appName || inferName(request);
-  const pendingId=makeId();
-  if(!currentChat){currentChat={id:makeId(),title,createdAt:startedAt,updatedAt:startedAt,messages:[],artifacts:[],project:{name:title,prompt:request,html:"",latestArtifactId:null},status:"building"};}
-  currentChat.updatedAt=startedAt; currentChat.status="building"; currentChat.project={...(currentChat.project||{}),name:title,prompt:request};
-  currentChat.messages.push({id:makeId(),role:"user",content:request,ts:startedAt});
-  currentChat.messages.push({id:pendingId,role:"assistant",content:`Building ${title}… Waiting for ${PROVIDERS[c.provider].name} to generate index.html.`,status:"building",ts:startedAt});
-  await saveChat(currentChat); showCurrentChat(); await renderChats();
-  emitProgress("chat-saved",8,"Chat saved — generation can continue safely");
-  emitProgress("request-sent",14,`Sent build request to ${PROVIDERS[c.provider].name}`);
-
-  try {
-    const raw=await callProvider(c,[{role:"system",content:TELEGRAM_APP_SYSTEM_PROMPT},{role:"user",content:`Build this app now.\n\n${request}`}],{temperature:.35,maxTokens:12000});
-    emitProgress("response",72,"AI response received");
-    const html=extractHtmlArtifact(raw); emitProgress("extract",80,"Extracted index.html from the response");
-    validateHtmlArtifact(html); emitProgress("validate",88,"HTML structure validated");
-    const now=new Date().toISOString(),version=nextArtifactVersion(currentChat),artifact=makeArtifact(html,version,now);
-    currentChat.updatedAt=now;currentChat.status="ready";currentChat.artifacts=[...(currentChat.artifacts||[]),artifact].slice(-MAX_ARTIFACTS_PER_CHAT);
-    currentChat.project={name:title,prompt:request,html,latestArtifactId:artifact.id};
-    const pending=currentChat.messages.find(m=>m.id===pendingId); if(pending){pending.content=`Created ${artifact.filename} (v${version}).`;pending.artifactId=artifact.id;pending.status="ready";pending.ts=now;}
-    await saveChat(currentChat); emitProgress("saved",95,"Saved index.html into this chat");
-    showCurrentChat();await renderChats();successHaptic();toast("index.html created and saved to chat ✦");
-  } catch(err) {
-    console.error(err); const now=new Date().toISOString(); currentChat.updatedAt=now;currentChat.status="error";
-    const pending=currentChat.messages.find(m=>m.id===pendingId); if(pending){pending.content=`Build failed: ${err.message||"Generation failed"}`;pending.status="error";pending.ts=now;}
-    await saveChat(currentChat);showCurrentChat();await renderChats();emitProgress("error",0,err.message||"Generation failed");errorHaptic();toast(err.message||"Generation failed");
-  } finally {busy=false;telegram?.MainButton?.hideProgress?.();toggleBusy(els.build,false,"✦ Generate index.html");updateTelegramButtons();}
-}
-
-async function editApp(){
-  const current=latestArtifact();if(!current)return toast("Generate or open a chat first");const request=els.editInput.value.trim();if(!request)return toast("Describe the change first");const c=getConfig();if(!c.apiKey){switchView("settings");return toast("Add an API key first");}
-  busy=true;updateTelegramButtons();toggleBusy(els.editBtn,true,"Editing HTML");telegram?.MainButton?.showProgress?.();
-  const now=new Date().toISOString(),pendingId=makeId();currentChat.updatedAt=now;currentChat.status="building";currentChat.messages.push({id:makeId(),role:"user",content:request,ts:now});currentChat.messages.push({id:pendingId,role:"assistant",content:`Applying edit… Waiting for ${PROVIDERS[c.provider].name}.`,status:"building",ts:now});
-  await saveChat(currentChat);showCurrentChat();await renderChats();emitProgress("chat-saved",8,"Edit request saved to chat");emitProgress("request-sent",14,`Sent edit request to ${PROVIDERS[c.provider].name}`);
-  try{
-    const history=(currentChat.messages||[]).filter(m=>m.role==="user").slice(-8).map(m=>`- ${m.content}`).join("\n");
-    const raw=await callProvider(c,[{role:"system",content:TELEGRAM_APP_SYSTEM_PROMPT+EDIT_SYSTEM_SUFFIX},{role:"user",content:`Recent requests:\n${history}\n\nCURRENT index.html:\n\n${current.content}\n\nCHANGE REQUEST:\n${request}`}],{temperature:.25,maxTokens:14000});
-    emitProgress("response",72,"AI response received");const html=extractHtmlArtifact(raw);emitProgress("extract",80,"Extracted updated index.html");validateHtmlArtifact(html);emitProgress("validate",88,"Updated HTML validated");
-    const done=new Date().toISOString(),version=nextArtifactVersion(currentChat),artifact=makeArtifact(html,version,done);currentChat.updatedAt=done;currentChat.status="ready";currentChat.artifacts=[...(currentChat.artifacts||[]),artifact].slice(-MAX_ARTIFACTS_PER_CHAT);currentChat.project={...(currentChat.project||{}),html,latestArtifactId:artifact.id};
-    const pending=currentChat.messages.find(m=>m.id===pendingId);if(pending){pending.content=`Updated ${artifact.filename} to v${version}.`;pending.artifactId=artifact.id;pending.status="ready";pending.ts=done;}
-    await saveChat(currentChat);emitProgress("saved",95,"Saved updated HTML to this chat");showCurrentChat();els.editInput.value="";await renderChats();successHaptic();toast("Edit saved as a new HTML version");
-  }catch(err){const done=new Date().toISOString();currentChat.updatedAt=done;currentChat.status="error";const pending=currentChat.messages.find(m=>m.id===pendingId);if(pending){pending.content=`Edit failed: ${err.message||"Generation failed"}`;pending.status="error";pending.ts=done;}await saveChat(currentChat);showCurrentChat();await renderChats();emitProgress("error",0,err.message||"Edit failed");errorHaptic();toast(err.message||"Edit failed");}
-  finally{busy=false;telegram?.MainButton?.hideProgress?.();toggleBusy(els.editBtn,false,"Apply edit");updateTelegramButtons();}
-}
-
-async function restoreLastSession(){const id=await getLastChatId();if(!id)return;const chat=await getChat(id);if(chat){currentChat=chat;showCurrentChat();}}
-function showCurrentChat(){if(!currentChat)return;const a=latestArtifact();if(currentChat.project?.prompt)els.prompt.value=currentChat.project.prompt;if(a){els.previewFrame.srcdoc=a.content;document.querySelector(".phone")?.classList.add("active");els.previewEmpty.style.display="none";els.previewTitle.textContent=currentChat.project?.name||currentChat.title;els.publishProjectName.textContent=currentChat.project?.name||currentChat.title;}else{els.previewFrame.srcdoc="";document.querySelector(".phone")?.classList.remove("active");els.previewEmpty.style.display="block";els.previewTitle.textContent=currentChat.title||"Building…";els.publishProjectName.textContent=currentChat.title||"Building…";}els.sessionName.textContent=currentChat.title||"Current session";els.sessionMeta.textContent=`${currentChat.messages?.length||0} messages · ${currentChat.status||"saved"} · ${formatDate(currentChat.updatedAt)}`;renderSessionMessages();}
-function renderSessionMessages(){const msgs=currentChat?.messages||[];if(!msgs.length){els.sessionMessages.innerHTML=`<div class="session-empty">Your prompts and generated HTML files will appear here automatically.</div>`;return;}els.sessionMessages.innerHTML=msgs.slice(-30).map(m=>{const a=m.artifactId?findArtifact(m.artifactId):null;const status=m.status==="building"?`<span class="pill">Building…</span>`:m.status==="error"?`<span class="pill">Failed</span>`:"";return `<div class="session-message ${m.role}"><div class="message-meta"><span>${m.role==="user"?"You":"AppGPT"}</span>${status}</div><p>${escapeHtml(m.content)}</p>${a?artifactCard(a):""}</div>`;}).join("");bindArtifactButtons();els.sessionMessages.scrollTop=els.sessionMessages.scrollHeight;}
-function artifactCard(a){return `<div class="artifact-card"><div><strong>📄 ${escapeHtml(a.filename)}</strong><span>v${a.version} · ${formatBytes(a.size)}</span></div><div class="artifact-actions"><button class="ghost-btn artifact-preview" data-id="${a.id}">Preview</button><button class="ghost-btn artifact-copy" data-id="${a.id}">Copy HTML</button><button class="secondary-btn artifact-download" data-id="${a.id}">Download</button></div></div>`;}
-function bindArtifactButtons(){document.querySelectorAll(".artifact-preview").forEach(b=>b.onclick=()=>openArtifactPreview(findArtifact(b.dataset.id)));document.querySelectorAll(".artifact-copy").forEach(b=>b.onclick=()=>copyArtifact(findArtifact(b.dataset.id)));document.querySelectorAll(".artifact-download").forEach(b=>b.onclick=()=>downloadArtifact(findArtifact(b.dataset.id)));}
-async function newChat(){currentChat=null;await setLastChatId("");els.prompt.value="";els.editInput.value="";els.previewFrame.srcdoc="";document.querySelector(".phone")?.classList.remove("active");els.previewEmpty.style.display="block";els.previewTitle.textContent="Untitled app";els.publishProjectName.textContent="Nothing generated yet";els.sessionName.textContent="New session";els.sessionMeta.textContent="Not saved yet";renderSessionMessages();switchView("build");}
-async function renderChats(){const chats=await listChats();els.chatsEmpty.style.display=chats.length?"none":"block";els.chatGrid.innerHTML=chats.map(chat=>`<article class="project-card chat-card ${chat.id===currentChat?.id?"active-chat":""}"><div class="project-card-top"><strong>${escapeHtml(chat.title||"Untitled chat")}</strong><span class="pill">${chat.status==="building"?"Building…":`${chat.artifacts?.length||0} files`}</span></div><p>${escapeHtml(chat.messages?.filter(m=>m.role==="user").at(-1)?.content||chat.project?.prompt||"No prompt")}</p><span class="tiny">Updated ${formatDate(chat.updatedAt)}</span><div class="project-card-actions"><button class="secondary-btn chat-open" data-id="${chat.id}">Continue</button><button class="ghost-btn chat-delete" data-id="${chat.id}">Delete</button></div></article>`).join("");document.querySelectorAll(".chat-open").forEach(b=>b.onclick=async()=>{const chat=await getChat(b.dataset.id);if(chat){currentChat=chat;await setLastChatId(chat.id);showCurrentChat();switchView("build");}});document.querySelectorAll(".chat-delete").forEach(b=>b.onclick=async()=>{await deleteChat(b.dataset.id);if(currentChat?.id===b.dataset.id)await newChat();await renderChats();toast("Chat deleted");});}
-function renderProviderCards(){els.providerCards.innerHTML=Object.values(PROVIDERS).map(p=>`<div class="provider-card"><strong>${escapeHtml(p.name)}</strong><span>${escapeHtml(p.hint)}</span></div>`).join("");}
-function latestArtifact(){if(!currentChat)return null;const arts=currentChat.artifacts||[];return arts.find(a=>a.id===currentChat.project?.latestArtifactId)||arts.at(-1)||null;}
-function findArtifact(id){return(currentChat?.artifacts||[]).find(a=>a.id===id)||null;}
-function nextArtifactVersion(chat){const max=Math.max(0,...(chat?.artifacts||[]).map(a=>Number(a.version)||0));return max+1;}
-function makeArtifact(content,version,createdAt){return{id:makeId(),filename:"index.html",mime:"text/html",version,content,size:new Blob([content]).size,createdAt};}
-function downloadArtifact(a){if(!a)return toast("No HTML file yet");const blob=new Blob([a.content],{type:"text/html;charset=utf-8"}),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download="index.html";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-async function copyArtifact(a){if(!a)return toast("No HTML file yet");try{await navigator.clipboard.writeText(a.content);toast("HTML copied");}catch{toast("Could not copy HTML");}}
-function openArtifactPreview(a){if(!a)return toast("No HTML file yet");const blob=new Blob([a.content],{type:"text/html"}),url=URL.createObjectURL(blob);window.open(url,"_blank","noopener,noreferrer");setTimeout(()=>URL.revokeObjectURL(url),60000);}
-function extractHtmlArtifact(raw){let s=String(raw||"").trim();const fenced=s.match(/```(?:html)?\s*([\s\S]*?)```/i);if(fenced)s=fenced[1].trim();const start=s.search(/<!doctype html>|<html[\s>]/i);if(start>=0)s=s.slice(start);const end=s.toLowerCase().lastIndexOf("</html>");if(end>=0)s=s.slice(0,end+7);return s.trim();}
-function validateHtmlArtifact(html){if(!html||html.length<200)throw new Error("The model returned an incomplete file.");if(!/<html[\s>]/i.test(html)||!/<head[\s>]/i.test(html)||!/<body[\s>]/i.test(html)||!/<\/html>/i.test(html))throw new Error("The AI response was not a complete HTML document. Try again.");}
-function emitProgress(stage,percent,label){window.dispatchEvent(new CustomEvent("appgpt:build-progress",{detail:{stage,percent,label,provider:els.providerSelect?.value||""}}));}
-function setProviderStatus(text,kind){els.providerStatus.textContent=text;els.providerStatus.className=`inline-status ${kind||""}`;}
-function toggleBusy(button,on,label){button.disabled=on;button.textContent=label;button.classList.toggle("loading",on);}
-function toast(message){els.toast.textContent=message;els.toast.classList.add("show");clearTimeout(toast.t);toast.t=setTimeout(()=>els.toast.classList.remove("show"),2600);}
-function inferName(prompt){const clean=prompt.replace(/^(build|make|create)\s+(me\s+)?(a|an)?\s*/i,"").trim();return clean.split(/[.!?\n]/)[0].split(/\s+/).slice(0,5).join(" ")||"New Mini App";}
-function formatDate(s){try{return new Intl.DateTimeFormat(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(new Date(s));}catch{return"recently";}}
-function formatBytes(n=0){if(n<1024)return`${n} B`;if(n<1048576)return`${(n/1024).toFixed(1)} KB`;return`${(n/1048576).toFixed(1)} MB`;}
-function escapeHtml(s=""){return String(s).replace(/[&<>'"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));}
-function makeId(){return crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;}
-function haptic(style){try{telegram?.HapticFeedback?.impactOccurred?.(style);}catch{}}
-function successHaptic(){try{telegram?.HapticFeedback?.notificationOccurred?.("success");}catch{}}
-function errorHaptic(){try{telegram?.HapticFeedback?.notificationOccurred?.("error");}catch{}}
-
-const TELEGRAM_APP_SYSTEM_PROMPT=`You are AppGPT's Telegram Mini App compiler. You build real, working Telegram Mini Apps. OUTPUT CONTRACT: Return exactly ONE complete index.html document and nothing else. Start with <!doctype html> and end with </html>. No markdown fences, explanations, preamble, JSON, multiple files, TODOs, or placeholders. Put ALL CSS in <style> and ALL JavaScript in <script> in the same file. Include https://telegram.org/js/telegram-web-app.js. Safely call Telegram.WebApp.ready() and expand() when available. Use Telegram theme variables and safe-area variables with browser fallbacks. Use Telegram APIs such as BackButton, MainButton, SecondaryButton, SettingsButton, HapticFeedback, DeviceStorage, SecureStorage, CloudStorage, openLink, showPopup, or viewport events only when they improve the requested app, and feature-detect every Telegram API. The app must also work in a normal browser preview. Implement the requested functionality, not a mockup. Persist ordinary local data when useful. Never include API keys, bot tokens, payment secrets, or fake credentials. If AI/backend access is needed, provide a BYOK/configurable endpoint flow and explain in the UI that public apps need a backend proxy. Avoid eval/new Function and escape unsafe user content. Design for a phone first, touch targets at least 44px, polished loading/empty/error states, accessible labels, and responsive layout. Before responding, internally check that the document contains html, head, body, inline CSS, inline JavaScript, and closing </html>. Your visible response is ONLY the final HTML file.`;
-const EDIT_SYSTEM_SUFFIX=`\nYou are editing the provided existing index.html. Preserve all working behavior unless the user explicitly asks to change it. Return the COMPLETE replacement index.html only, following the same single-file output contract.`;
+async function init(){telegram();providers();await restoreProvider();bind();const last=await getLastChatId();if(last)S.chat=await getChat(last);await renderChats();await renderTemplates();providerCards();E.ghToken.value=loadGithubToken();providerSummary();refresh();telegramButtons()}
+function telegram(){if(!tg)return;try{tg.ready();tg.expand();tg.enableClosingConfirmation?.();tg.setHeaderColor?.('secondary_bg_color');tg.setBackgroundColor?.('bg_color');tg.setBottomBarColor?.('bottom_bar_bg_color');tg.MainButton?.setParams?.({text:'✦ CREATE APP',is_visible:true,is_active:true,has_shine_effect:true});tg.MainButton?.onClick?.(createFlow);if(tg.SecondaryButton){tg.SecondaryButton.setParams({text:'CHATS',position:'left',is_visible:true,is_active:true});tg.SecondaryButton.onClick(()=>view('chats'))}if(tg.SettingsButton){tg.SettingsButton.show();tg.SettingsButton.onClick(()=>view('settings'))}tg.BackButton?.onClick?.(()=>view('build'))}catch(e){console.debug(e)}}
+function bind(){E.nav.forEach(b=>b.onclick=()=>view(b.dataset.view));E.newChat.onclick=()=>newChat(true);E.create.onclick=createFlow;E.build.onclick=build;E.editBtn.onclick=edit;E.provider.onchange=preset;E.toggleKey.onclick=()=>E.key.type=E.key.type==='password'?'text':'password';E.saveProvider.onclick=saveProvider;E.test.onclick=testProvider;E.shot.onchange=shot;E.shotClear.onclick=()=>clearShot();E.open.onclick=()=>openFile(latest());E.download.onclick=()=>saveFile(latest());E.copy.onclick=()=>copyFile(latest());E.visualToggle.onchange=()=>{S.visual=E.visualToggle.checked;S.selected=null;visualForm();preview()};E.visualApply.onclick=visualSave;E.audit.onclick=debug;E.autoFix.onclick=fix;E.templateSearch.oninput=renderTemplates;E.templateImport.onchange=importTemplate;E.ghVerify.onclick=verifyGh;E.ghPublish.onclick=publish;E.modalClose.onclick=E.modalCancel.onclick=closeSheet;E.modalConfirm.onclick=fromSheet;E.modal.onclick=e=>{if(e.target===E.modal)closeSheet()};window.onmessage=previewMessage;E.messages.onclick=messageAction;E.chatGrid.onclick=chatAction;E.templateGrid.onclick=templateAction;window.addEventListener('appgpt-chat-changed',async()=>{refresh();await renderChats()});document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>E.prompt.value=c.dataset.prompt||c.textContent.trim())}
+function view(v){S.view=v;E.nav.forEach(b=>b.classList.toggle('active',b.dataset.view===v));E.views.forEach(x=>x.classList.toggle('active',x.id===`view-${v}`));E.page.textContent={build:'Build a Telegram app',chats:'Saved chats',templates:'Templates',debug:'Debug & repair',publish:'Publish to GitHub Pages',settings:'AI provider'}[v]||'AppGPT';if(v==='chats')renderChats();if(v==='templates')renderTemplates();if(v==='debug')debug();telegramButtons()}
+function telegramButtons(){if(!tg)return;try{S.view==='build'?tg.BackButton?.hide?.():tg.BackButton?.show?.();tg.MainButton?.setParams?.({text:S.busy?'BUILDING…':'✦ CREATE APP',is_visible:S.view==='build',is_active:!S.busy,has_shine_effect:!S.busy})}catch{}}
+async function createFlow(){await ensureDraft('New app');refresh();await renderChats();haptic();if(tg?.showPopup){try{tg.showPopup({title:'Create a Telegram Mini App',message:'The chat is already saved. Add details, then AppGPT will generate one complete index.html.',buttons:[{id:'go',type:'default',text:'Set up app'},{id:'cancel',type:'cancel'}]},x=>{if(x==='go')openSheet()});return}catch{}}openSheet()}
+function openSheet(){E.modal.hidden=false;setTimeout(()=>E.appName.focus(),0)}function closeSheet(){E.modal.hidden=true}
+async function fromSheet(){const n=E.appName.value.trim(),d=E.appDescription.value.trim();if(!n||!d)return toast('Add an app name and description.');await ensureDraft(n);S.chat.title=n;const q=[`App name: ${n}`,`Purpose and features: ${d}`,`Visual style: ${E.appStyle.value}`,E.appExtra.value.trim()?`Extra instructions: ${E.appExtra.value.trim()}`:''].filter(Boolean).join('\n');S.chat.project={...(S.chat.project||{}),name:n,prompt:q};S.chat.updatedAt=new Date().toISOString();await saveChat(S.chat);closeSheet();E.prompt.value=q;await doBuild(q,n)}
+async function newChat(show=false){S.chat=draft();await saveChat(S.chat);await setLastChatId(S.chat.id);S.image=null;S.runtime=[];S.selected=null;S.visual=false;E.visualToggle.checked=false;E.prompt.value='';E.edit.value='';clearShot(false);refresh();await renderChats();view('build');if(show)toast('New chat saved')}
+async function build(){const q=E.prompt.value.trim();if(!q)return createFlow();if(S.chat?.artifacts?.length)await newChat(false);await ensureDraft(infer(q));await doBuild(q,S.chat.title)}
+async function doBuild(q,title){try{telegramButtons();await runBuild(q,{title,quality:E.quality.value,image:S.image});refresh();preview();toast('index.html saved to chat ✦')}catch(e){if(/API key/.test(e.message))view('settings');toast(e.message)}finally{telegramButtons()}}
+async function edit(){const q=E.edit.value.trim();try{await editCurrent(q);E.edit.value='';refresh();preview();toast('Edit saved as a new version')}catch(e){if(/API key/.test(e.message))view('settings');toast(e.message)}finally{telegramButtons()}}
+function refresh(){showChat();preview();debug();if(S.chat)E.ghRepo.value=slug(S.chat.title)}
+function showChat(){E.sessionName.textContent=S.chat?.title||'No chat selected';E.sessionMeta.textContent=S.chat?`${S.chat.status} · ${S.chat.messages?.length||0} messages · ${S.chat.artifacts?.length||0} files`:'Not saved yet';const m=S.chat?.messages||[];E.messages.innerHTML=m.length?m.map(x=>`<article class="message ${x.role} ${x.status||''}"><div class="message-role">${x.role==='user'?'You':'AppGPT'}</div><div class="message-body">${esc(x.content)}</div>${x.imageAttached?'<span class="tiny-pill">image attached</span>':''}${x.artifactId?card(artifact(x.artifactId)):''}</article>`).join(''):'<div class="empty-inline">This chat is saved. Build messages and files will appear here.</div>';E.messages.scrollTop=E.messages.scrollHeight;E.previewTitle.textContent=S.chat?.project?.name||S.chat?.title||'Untitled app'}
+function card(a){if(!a)return'';return`<div class="artifact-card"><div><strong>${a.filename}</strong><span>v${a.version} · ${bytes(a.bytes||a.content?.length||0)}</span></div><div class="artifact-actions"><button data-file="preview" data-id="${a.id}">Preview</button><button data-file="copy" data-id="${a.id}">Copy</button><button data-file="download" data-id="${a.id}">Download</button></div></div>`}
+function messageAction(e){const b=e.target.closest('[data-file]');if(!b)return;const a=artifact(b.dataset.id);if(b.dataset.file==='preview')openFile(a);if(b.dataset.file==='copy')copyFile(a);if(b.dataset.file==='download')saveFile(a)}
+async function renderChats(){const cs=await listChats();E.chatsEmpty.hidden=!!cs.length;E.chatGrid.innerHTML=cs.map(c=>`<article class="chat-card ${c.id===S.chat?.id?'selected':''}"><div class="chat-card-top"><div><strong>${esc(c.title||'Untitled')}</strong><span>${esc(c.status||'saved')}</span></div><span class="tiny-pill">${c.artifacts?.length||0} files</span></div><p>${esc([...c.messages||[]].reverse().find(x=>x.role==='user')?.content||c.project?.prompt||'Saved draft')}</p><div class="chat-actions"><button class="secondary-btn" data-chat="open" data-id="${c.id}">Continue</button><button class="ghost-btn" data-chat="delete" data-id="${c.id}">Delete</button></div></article>`).join('')}
+async function chatAction(e){const b=e.target.closest('[data-chat]');if(!b)return;if(b.dataset.chat==='delete'){await deleteChat(b.dataset.id);if(S.chat?.id===b.dataset.id)S.chat=null;await renderChats();refresh();return}S.chat=await getChat(b.dataset.id);await setLastChatId(S.chat.id);S.runtime=[];S.selected=null;refresh();view('build')}
+function preview(){const a=latest();if(!a){E.frame.srcdoc='';E.empty.hidden=false;return}E.empty.hidden=true;E.frame.srcdoc=preparePreview(a.content,{visualEdit:S.visual})}
+function previewMessage(e){const d=e.data;if(!d||d.source!=='appgpt-preview')return;if(d.type==='runtime-error'){const k=`${d.message}|${d.line||0}`;if(!S.runtime.some(x=>x.key===k))S.runtime.push({key:k,message:d.message,line:d.line||0,col:d.col||0});debug()}if(d.type==='preview-ready')progress(100,'Ready','Preview loaded. Edit, debug, download, or publish it.',false,'Preview loaded successfully.',false,true);if(d.type==='visual-select'){S.selected=d;visualForm();haptic('selection')}}
+function visualForm(){E.visualPanel.hidden=!S.visual;if(!S.visual)return;if(!S.selected){E.visualSelection.textContent='Click an element inside the preview to select it.';return}E.visualSelection.textContent=`${S.selected.tag} · ${S.selected.path}`;E.visualText.value=S.selected.text||'';E.visualColor.value=color(S.selected.styles?.color)||'#ffffff';E.visualBg.value=color(S.selected.styles?.backgroundColor)||'#111827';E.visualFont.value=S.selected.styles?.fontSize||'';E.visualRadius.value=S.selected.styles?.borderRadius||'';E.visualPadding.value=S.selected.styles?.padding||''}
+async function visualSave(){const a=latest();if(!a||!S.selected)return toast('Select an element first.');try{const html=applyVisualPatch(a.content,S.selected.path,{text:E.visualText.value,color:E.visualColor.value,backgroundColor:E.visualBg.value,fontSize:E.visualFont.value.trim(),borderRadius:E.visualRadius.value.trim(),padding:E.visualPadding.value.trim()});await saveManual(html,'Visual edit');S.selected=null;refresh();await renderChats();toast('Visual edit saved as a new version')}catch(e){toast(e.message)}}
+function debug(){const a=latest(),issues=a?auditHtml(a.content):[];E.debug.innerHTML=issues.length?issues.map(i=>`<div class="issue ${i.severity}"><strong>${esc(i.title)}</strong><span>${esc(i.detail)}</span></div>`).join(''):'<div class="empty-inline">No static issues detected.</div>';E.runtime.innerHTML=S.runtime.length?S.runtime.map(x=>`<div class="issue error"><strong>Runtime error</strong><span>${esc(x.message)}${x.line?` · line ${x.line}`:''}</span></div>`).join(''):'<div class="empty-inline">No runtime errors captured.</div>';E.autoFix.disabled=!a||(!issues.length&&!S.runtime.length)}
+async function fix(){const a=latest();if(!a)return;const issues=auditHtml(a.content),diag=[...issues.map(x=>`${x.severity}: ${x.title} — ${x.detail}`),...S.runtime.map(x=>`runtime: ${x.message}${x.line?` line ${x.line}`:''}`)].join('\n');try{await autoRepair(diag);S.runtime=[];refresh();preview();toast('Repair saved as a new version')}catch(e){if(/API key/.test(e.message))view('settings');toast(e.message)}finally{telegramButtons()}}
+async function renderTemplates(){const custom=await listCustomTemplates(),q=E.templateSearch.value.trim().toLowerCase(),all=[...custom,...BUILTIN_TEMPLATES].filter(t=>!q||`${t.name} ${t.category} ${t.description} ${t.prompt}`.toLowerCase().includes(q));E.templateGrid.innerHTML=all.map(t=>`<article class="template-card"><div class="template-icon">${esc(t.emoji||'✦')}</div><div class="template-card-head"><div><strong>${esc(t.name)}</strong><span>${esc(t.category||'Template')}</span></div>${t.custom?'<span class="tiny-pill">imported</span>':''}</div><p>${esc(t.description||t.prompt.slice(0,120))}</p><div class="template-actions"><button class="primary-btn small" data-template="use" data-id="${t.id}">Use</button><button class="ghost-btn" data-template="export" data-id="${t.id}">Export</button>${t.custom?`<button class="ghost-btn danger" data-template="delete" data-id="${t.id}">Delete</button>`:''}</div></article>`).join('')}
+async function templateAction(e){const b=e.target.closest('[data-template]');if(!b)return;const all=[...await listCustomTemplates(),...BUILTIN_TEMPLATES],t=all.find(x=>x.id===b.dataset.id);if(!t)return;if(b.dataset.template==='delete'){await deleteCustomTemplate(t.id);return renderTemplates()}if(b.dataset.template==='export'){download(`${slug(t.name)}.appgpt-template.json`,templateToJson(t),'application/json');return}await newChat(false);S.chat.title=t.name;S.chat.project.name=t.name;await saveChat(S.chat);E.prompt.value=`${t.prompt}\nVisual style: ${t.style}.`;view('build');toast(`${t.name} loaded into a saved chat`)}
+async function importTemplate(){const f=E.templateImport.files?.[0];if(!f)return;try{const t=validateTemplate(JSON.parse(await f.text()));await saveCustomTemplate(t);await renderTemplates();toast('Template imported')}catch(e){toast(e.message)}finally{E.templateImport.value=''}}
+async function shot(){const f=E.shot.files?.[0];if(!f)return;if(!f.type.startsWith('image/'))return toast('Choose an image file.');if(f.size>8388608)return toast('Use an image under 8 MB.');try{S.image=await compress(f);E.shotImg.src=S.image;E.shotImg.hidden=false;E.shotClear.hidden=false;toast('Screenshot attached for a vision-capable model.')}catch(e){toast(e.message)}}
+function clearShot(reset=true){S.image=null;E.shotImg.hidden=true;E.shotImg.removeAttribute('src');E.shotClear.hidden=true;if(reset)E.shot.value=''}
+async function compress(f){const u=await new Promise((r,j)=>{const x=new FileReader();x.onload=()=>r(x.result);x.onerror=()=>j(x.error);x.readAsDataURL(f)}),im=await new Promise((r,j)=>{const x=new Image();x.onload=()=>r(x);x.onerror=()=>j(new Error('Could not read image'));x.src=u}),scale=Math.min(1,1600/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*scale);c.height=Math.round(im.height*scale);c.getContext('2d').drawImage(im,0,0,c.width,c.height);return c.toDataURL('image/jpeg',.86)}
+function providers(){E.provider.innerHTML=Object.entries(PROVIDERS).map(([k,p])=>`<option value="${k}">${esc(p.name)}</option>`).join('')}
+async function restoreProvider(){let x={};try{x=JSON.parse(localStorage.getItem(CFG)||'{}')}catch{}const p=x.provider&&PROVIDERS[x.provider]?x.provider:'gemini',d=PROVIDERS[p];E.provider.value=p;E.modelInput.value=x.model||d.model;E.base.value=x.baseUrl||d.baseUrl;const s=await loadApiKey();E.key.value=s.key||'';E.remember.checked=s.remembered}
+function preset(){const p=PROVIDERS[E.provider.value];E.modelInput.value=p.model;E.base.value=p.baseUrl;providerSummary()}
+async function saveProvider(){const c=config();localStorage.setItem(CFG,JSON.stringify({provider:c.provider,model:c.model,baseUrl:c.baseUrl}));await saveApiKey(c.apiKey,E.remember.checked);providerSummary();status(E.providerStatus,'Provider settings saved','ok');success()}
+async function testProvider(){status(E.providerStatus,'Testing…');try{const c=config(),r=await callProvider(c,[{role:'system',content:'Reply exactly OK.'},{role:'user',content:'test'}],{maxTokens:20,temperature:0});status(E.providerStatus,`Connected — ${r.trim().slice(0,40)}`,'ok')}catch(e){status(E.providerStatus,e.message,'error')}}
+function providerSummary(){const c=config(),ok=!!(c.apiKey&&c.model&&c.baseUrl);E.badge.textContent=ok?`${PROVIDERS[c.provider].name} · ${c.model}`:'No provider';E.model.textContent=ok?`${PROVIDERS[c.provider].name} · ${c.model}`:'Set a provider first'}
+function providerCards(){E.providerCards.innerHTML=Object.values(PROVIDERS).map(p=>`<div class="provider-card"><strong>${esc(p.name)}</strong><span>${esc(p.hint)}</span><small>${p.vision?'Image input capable*':'Text/code focused'}</small></div>`).join('')}
+async function verifyGh(){status(E.ghStatus,'Checking token…');try{const u=await verifyGithubToken(E.ghToken.value.trim());saveGithubToken(E.ghToken.value.trim());E.ghOwner.value=u.login;status(E.ghStatus,`Connected as ${u.login}`,'ok')}catch(e){status(E.ghStatus,e.message,'error')}}
+async function publish(){const a=latest();if(!a)return toast('Generate an app first.');E.ghPublish.disabled=true;status(E.ghStatus,'Publishing index.html and configuring Pages…');try{const r=await publishToGithubPages({token:E.ghToken.value.trim(),owner:E.ghOwner.value.trim(),repo:E.ghRepo.value.trim()||slug(S.chat.title),html:a.content,description:`${S.chat.title} — Telegram Mini App created with AppGPT`});saveGithubToken(E.ghToken.value.trim());status(E.ghStatus,`Published. Pages URL: ${r.pagesUrl}`,'ok');const now=new Date().toISOString();S.chat.publish={...r,publishedAt:now};S.chat.updatedAt=now;S.chat.messages.push({id:id(),role:'assistant',content:`Published to ${r.pagesUrl}`,ts:now});await saveChat(S.chat);refresh()}catch(e){status(E.ghStatus,e.message,'error')}finally{E.ghPublish.disabled=false}}
+function openFile(a){if(!a)return toast('No HTML file yet.');const u=URL.createObjectURL(new Blob([a.content],{type:'text/html'}));window.open(u,'_blank','noopener,noreferrer');setTimeout(()=>URL.revokeObjectURL(u),60000)}function saveFile(a){if(a)download('index.html',a.content,'text/html;charset=utf-8');else toast('No HTML file yet.')}async function copyFile(a){if(!a)return toast('No HTML file yet.');try{await navigator.clipboard.writeText(a.content);toast('HTML copied')}catch{toast('Clipboard access failed')}}
+function color(v){const m=String(v||'').match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);if(!m)return/^#[0-9a-f]{6}$/i.test(v)?v:null;return'#'+[m[1],m[2],m[3]].map(x=>(+x).toString(16).padStart(2,'0')).join('')}
