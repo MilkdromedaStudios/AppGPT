@@ -22,7 +22,6 @@ init();
 
 function init() {
   loadAppearanceCss();
-  markLiquidSurfaces();
   mountDock();
   setupProviderModels();
   openRequestedView();
@@ -39,10 +38,6 @@ function loadAppearanceCss() {
   link.href = APPEARANCE_CSS;
   link.dataset.appgptAppearance = 'true';
   document.head.append(link);
-}
-
-function markLiquidSurfaces() {
-  document.querySelectorAll('.sidebar.glass, .panel.glass, .app-sheet.glass').forEach(element => element.classList.add('liquidGL'));
 }
 
 function readTheme() {
@@ -192,23 +187,44 @@ function applyTheme(theme, persist = true) {
 }
 
 async function initLiquidGL() {
+  const dock = document.getElementById('liquidDock');
   const badge = document.getElementById('liquidGlBadge');
+  if (!dock) return;
+
   try {
     const module = await import(LIQUID_GL_URL);
     const liquidGL = module.default;
     if (typeof liquidGL !== 'function') throw new Error('liquidGL did not load correctly');
     const reduced = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+
+    // IMPORTANT: LiquidGL is intentionally restricted to the small top dock.
+    // Applying its WebGL lens to large layout panels can cover their child UI.
     liquidInstance = liquidGL({
-      snapshot: 'body', target: '.liquidGL',
-      resolution: Math.min(1.45, Math.max(1, (window.devicePixelRatio || 1) * 0.72)),
-      refraction: 0.014, aberration: 0.025, bevelDepth: 0.07, bevelWidth: 0.15,
-      frost: root.dataset.theme === 'light' ? 0.65 : 1.05,
-      shadow: true, specular: !reduced, reveal: reduced ? 'none' : 'fade', tilt: false, magnify: 1.006,
-      on: { init() { liquidReady = true; if (badge) badge.dataset.state = 'ready'; } }
+      snapshot: 'body',
+      target: '#liquidDock',
+      resolution: Math.min(1.35, Math.max(1, (window.devicePixelRatio || 1) * 0.65)),
+      refraction: 0.01,
+      aberration: 0.018,
+      bevelDepth: 0.055,
+      bevelWidth: 0.13,
+      frost: root.dataset.theme === 'light' ? 0.45 : 0.72,
+      shadow: true,
+      specular: !reduced,
+      reveal: reduced ? 'none' : 'fade',
+      tilt: false,
+      magnify: 1.003,
+      on: {
+        init() {
+          liquidReady = true;
+          dock.dataset.liquidReady = 'true';
+          if (badge) badge.dataset.state = 'ready';
+        }
+      }
     });
     if (badge && !liquidReady) badge.dataset.state = 'loading';
   } catch (error) {
     console.warn('LiquidGL unavailable; CSS glass fallback is active.', error);
+    dock.classList.add('liquid-fallback');
     if (badge) {
       badge.dataset.state = 'fallback';
       const label = badge.querySelector('span');
@@ -218,10 +234,14 @@ async function initLiquidGL() {
 }
 
 function recaptureSoon() {
+  if (!liquidReady) return;
   clearTimeout(recaptureSoon.timer);
   recaptureSoon.timer = setTimeout(() => {
-    try { window.__liquidGLRenderer__?.captureSnapshot?.(); window.__liquidGLRenderer__?.render?.(); } catch {}
-  }, 80);
+    try {
+      window.__liquidGLRenderer__?.captureSnapshot?.();
+      window.__liquidGLRenderer__?.render?.();
+    } catch {}
+  }, 90);
 }
 
 export function getAppearanceState() {
