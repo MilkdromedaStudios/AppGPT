@@ -1,95 +1,103 @@
 # AppGPT ✦
 
-AppGPT is a GitHub Pages-friendly AI builder for **Telegram Mini Apps**.
+AppGPT is a GitHub Pages-friendly AI builder for **Telegram Mini Apps**. A creator brings their own model API key, describes an app (or attaches a screenshot), and AppGPT produces a versioned, single-file `index.html` that can be previewed, edited, debugged, downloaded, and published.
 
-The core idea is intentionally simple: every generation produces **one complete `index.html` file** containing the app's HTML, CSS, and JavaScript. The generated file is attached to a persistent build chat so users can come back, continue editing, preview older versions, copy the HTML, or download it later.
+## What works now
 
-## Current features
+### Persistent chats
+- A draft chat is saved **before** generation starts.
+- Build/edit requests are saved before the AI network call.
+- Failed or long-running generations do not make the chat disappear.
+- Every generated/edit/repair/visual-edit result is a versioned `index.html` artifact stored in that chat.
 
-- Persistent multi-chat history using IndexedDB
-- Automatically resumes the last opened chat
-- Versioned `index.html` artifacts saved inside each chat
-- Preview / Copy HTML / Download controls on generated-file cards
-- AI editing creates a new HTML version instead of destroying chat history
-- Dedicated Telegram Mini App system instructions for the AI
-- Robust extraction of HTML even if a model accidentally wraps it in a code fence
-- Validation that generated output contains a full HTML document
-- BYOK support for OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Together, xAI, Gemini, Anthropic, and custom OpenAI-compatible APIs
-- Telegram SecureStorage for remembered API keys when available
-- Telegram DeviceStorage for last-session restoration when available
-- Normal-browser fallbacks
+### Fast and Reviewed build modes
+- **Fast**: one main generation call.
+- **Reviewed**: planner → builder → QA reviewer → conditional repair.
+- Build progress uses real milestones. While the provider is generating, the bar stays in an explicit waiting state instead of pretending to know an exact completion percentage.
 
-## Telegram-native create flow
+### Screenshot → app
+- Attach an image as design/reference input.
+- AppGPT compresses the image in the browser before sending it.
+- Gemini, OpenAI-compatible vision models, Anthropic vision models, and other compatible models can receive the screenshot as multimodal input.
+- The exact model must support vision; provider presets are only best-effort defaults.
 
-When AppGPT runs inside Telegram it uses Telegram Mini App UI APIs when available:
+### Automatic debugging
+- Static checks catch incomplete HTML, missing mobile viewport, missing Telegram SDK, `eval()`/`new Function()`, probable exposed bot tokens/API keys, and several UX/performance warnings.
+- The preview injects a small debugging bridge that reports `console.error`, uncaught errors, and unhandled promise rejections back to AppGPT with `postMessage`.
+- **Auto-fix** sends real diagnostics plus the current HTML to the selected model and saves the repaired result as a new version.
 
-- `MainButton` → opens the Create App flow
-- `SecondaryButton` → opens Chats
-- `SettingsButton` → opens Provider settings
-- `BackButton` → returns to the builder
-- `showPopup()` → native confirmation before creating an app
-- `HapticFeedback` → native-feeling success/error/selection feedback
+### Visual editor
+- Turn on **Visual edit mode** and click an element in the phone preview.
+- Edit leaf text, text/background colors, font size, border radius, and padding.
+- Saving a visual edit creates a new `index.html` version without spending an AI call.
 
-Telegram's native popup does not provide arbitrary text fields, so after the native confirmation AppGPT opens its own Telegram-themed setup sheet for:
+### Templates
+- 12 built-in templates across education, productivity, games, finance, lifestyle, travel, commerce, and utilities.
+- Templates can be exported as shareable `.appgpt-template.json` files.
+- Imported template JSON is validated and stored locally.
+- This provides real template sharing without pretending AppGPT already has a cross-user marketplace/database.
 
-- App name
-- What the app should do
-- Visual style
-- Extra instructions
+### One-click GitHub Pages publishing
+The Publish screen can:
+1. Authenticate with a GitHub personal access token kept in the current browser session.
+2. Create a public repository under the token owner's account if it does not exist.
+3. Create or update `index.html` in the repository root.
+4. Attempt to enable GitHub Pages from the repository's default branch root.
 
-Pressing **Create app** sends those details to the selected AI provider and automatically generates the saved `index.html` artifact.
+GitHub token requirements depend on token type and repository settings. For automatic Pages configuration, the token needs suitable repository contents plus Pages/administration permissions.
 
-## AI output contract
+## Telegram integration
 
-AppGPT gives the model a separate system instruction dedicated to Telegram app generation. It requires:
+AppGPT itself uses the Telegram Mini App bridge when launched inside Telegram:
+- `Telegram.WebApp.ready()` / `expand()`
+- Main and secondary bottom buttons when available
+- Settings and Back buttons
+- Haptic feedback
+- DeviceStorage / SecureStorage fallbacks for session and key-related state when supported
 
-1. Exactly one complete `index.html`
-2. Raw HTML only — no Markdown explanation
-3. All CSS inside `<style>` tags
-4. All JavaScript inside `<script>` tags
-5. Telegram's `telegram-web-app.js` SDK included
-6. Telegram APIs feature-detected with browser fallbacks
-7. No bot tokens or secret credentials embedded in generated code
-8. No React/npm/build step required
+Generated apps are instructed to load the official Telegram Web App JavaScript bridge, feature-detect Telegram APIs, use Telegram theme/safe-area variables where practical, and still work in an ordinary browser preview.
 
-When a user asks for an edit, AppGPT sends the current HTML plus the edit request and requires the model to return the **complete replacement `index.html`**, which becomes the next saved version.
+## AI provider support
 
-## How files are stored in chats
+Presets include OpenAI, OpenRouter, Groq, DeepSeek, Mistral, Together AI, xAI, Gemini, Anthropic, and a custom OpenAI-compatible endpoint.
 
-Each chat stores:
+### Gemini HTML-only handling
+For build/repair requests AppGPT asks Gemini for structured JSON with one `html` field, then extracts that field. AppGPT still runs its normal HTML extractor/validator as a fallback.
 
-- Messages
-- App metadata
-- Up to 20 recent HTML artifacts
-- Latest artifact ID
+### API-key safety
+Provider API keys belong to the creator and are never written into a generated app. Remembered provider keys use Telegram SecureStorage where supported; outside Telegram, AppGPT falls back to browser storage.
 
-An assistant message can reference an `artifactId`. The artifact record contains the real HTML text, filename, MIME type, version, byte size, and creation time. This is why AppGPT can reliably show a file card and export the file without trying to scrape code out of chat text.
+## Run locally
 
-## Storage
+```bash
+python -m http.server 8080
+```
 
-Large chats and generated HTML are stored in **IndexedDB**, not cookies. The latest chat ID can also be mirrored into Telegram DeviceStorage where available. API keys can use Telegram SecureStorage where available.
+Then open `http://localhost:8080`.
 
-Storage is still device-local in this GitHub Pages-only version. True account-based cross-device chat sync would require a backend/database.
+## GitHub Pages for AppGPT
 
-## GitHub Pages
-
-Expected URL for this repository:
+For this repository, enable Pages from the `main` branch and repository root. The expected URL is:
 
 `https://milkdromedastudios.github.io/AppGPT/`
 
-Enable it from **Settings → Pages → Deploy from a branch → main → /(root)** if it is not already enabled.
+## Architecture
 
-## Telegram setup
+- `index.html` — builder UI
+- `styles.css` — responsive glass/Telegram-style interface
+- `main.js` — chat/build/edit/debug/visual/template/publish workflow
+- `thinking.js` — progress panel driven by real build milestone events
+- `providers.js` — provider adapters, including multimodal input and Gemini structured HTML output
+- `storage.js` — IndexedDB chats/templates plus Telegram/browser storage helpers
+- `templates.js` — built-in templates and import/export validation
+- `preview-tools.js` — static audit, runtime bridge, visual-edit patching
+- `github-publish.js` — browser-side GitHub repository/content/Pages publishing
+- `app-state.js` — shared UI/state helpers
+- `build-engine.js` — generation, planner/reviewer mode, repairs, and artifact versioning
 
-In `@BotFather`, configure your existing bot's Mini App/menu button to use the GitHub Pages HTTPS URL.
+## Intentional boundary
 
-AppGPT can generate the **Mini App frontend**, but frontend JavaScript cannot securely create a Telegram bot or register a Main Mini App with BotFather automatically. Those bot-level operations require Telegram's bot configuration flow and, for Bot API calls involving secrets, a secure backend.
-
-## Security
-
-- Never commit Telegram bot tokens.
-- Never hardcode private AI-provider keys into generated public apps.
-- GitHub Pages is static hosting and cannot keep secrets from visitors.
+A true cross-user community marketplace, account sync, shared project database, server-side secrets, and collaborative editing require a backend. AppGPT does not show fake buttons for those features in the GitHub Pages-only build.
 
 ## License
 
