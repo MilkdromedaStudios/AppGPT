@@ -1,3 +1,5 @@
+import './night-codeplus.js';
+if(!document.querySelector('link[data-night-codeplus]')){const l=document.createElement('link');l.rel='stylesheet';l.href='./night-codeplus.css';l.dataset.nightCodeplus='1';document.head.append(l)}
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const KEY='appgpt_appearance_center_v1';
 const defaults={theme:'dark',accent:'violet',custom:'#8b7cff',density:'cozy',radius:1,glass:1,sidebar:260,scale:1,motion:true,contrast:false,ambient:true,meta:true,zen:false};
