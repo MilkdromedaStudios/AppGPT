@@ -1,14 +1,13 @@
 const THEME_KEY = 'appgpt_theme';
 const APPEARANCE_CSS = './appearance.css';
 const LIQUID_GL_URL = 'https://cdn.jsdelivr.net/npm/liquid-gl@2.0.1/liquidGL.js';
+const HF_MODELS_URL = 'https://router.huggingface.co/v1/models';
 const HF_MODELS = [
   'Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest',
   'openai/gpt-oss-120b:fastest',
   'deepseek-ai/DeepSeek-R1:fastest',
   'Qwen/Qwen2.5-Coder-32B-Instruct:fastest',
   'Qwen/Qwen3-4B-Thinking-2507:fastest',
-  'Qwen/Qwen2.5-7B-Instruct-1M:fastest',
-  'google/gemma-2-2b-it:fastest',
   'zai-org/GLM-4.5V:fastest',
   'Qwen/Qwen2.5-VL-3B-Instruct:fastest'
 ];
@@ -17,6 +16,7 @@ const root = document.documentElement;
 const tg = window.Telegram?.WebApp;
 let liquidReady = false;
 let liquidInstance = null;
+let hfRequest = 0;
 
 init();
 
@@ -42,9 +42,7 @@ function loadAppearanceCss() {
 }
 
 function markLiquidSurfaces() {
-  document.querySelectorAll('.sidebar.glass, .panel.glass, .app-sheet.glass').forEach(element => {
-    element.classList.add('liquidGL');
-  });
+  document.querySelectorAll('.sidebar.glass, .panel.glass, .app-sheet.glass').forEach(element => element.classList.add('liquidGL'));
 }
 
 function readTheme() {
@@ -59,10 +57,7 @@ function openRequestedView() {
   let attempts = 0;
   const tryOpen = () => {
     const button = document.querySelector(`.nav-item[data-view="${requested}"]`);
-    if (button && typeof button.onclick === 'function') {
-      button.click();
-      return;
-    }
+    if (button && typeof button.onclick === 'function') return button.click();
     if (++attempts < 30) setTimeout(tryOpen, 80);
   };
   setTimeout(tryOpen, 0);
@@ -71,6 +66,7 @@ function openRequestedView() {
 function setupProviderModels() {
   const provider = document.getElementById('providerSelect');
   const model = document.getElementById('modelInput');
+  const key = document.getElementById('apiKeyInput');
   if (!provider || !model) return;
 
   let list = document.getElementById('appgptModelSuggestions');
@@ -89,15 +85,45 @@ function setupProviderModels() {
     model.insertAdjacentElement('afterend', hint);
   }
 
-  const refresh = () => {
-    const isHF = provider.value === 'huggingface';
-    list.innerHTML = (isHF ? HF_MODELS : []).map(value => `<option value="${escapeAttr(value)}"></option>`).join('');
-    hint.textContent = isHF
-      ? 'Hugging Face: choose a suggested model or type any chat-capable model ID. Add :fastest, :cheapest, or :preferred to control routing.'
-      : '';
-    hint.hidden = !isHF;
+  const renderOptions = values => {
+    const unique = [...new Set(values)].slice(0, 350);
+    list.innerHTML = unique.map(value => `<option value="${escapeAttr(value)}"></option>`).join('');
   };
+
+  const refresh = async () => {
+    const ticket = ++hfRequest;
+    const isHF = provider.value === 'huggingface';
+    if (!isHF) {
+      list.innerHTML = '';
+      hint.hidden = true;
+      return;
+    }
+
+    renderOptions(HF_MODELS);
+    hint.hidden = false;
+    hint.textContent = 'Hugging Face: curated coding/vision models shown. Enter an HF token to load the live Inference Providers model catalog. You can also type any compatible model ID.';
+
+    const token = key?.value?.trim();
+    if (!token) return;
+    hint.textContent = 'Hugging Face: loading the current Inference Providers model catalog…';
+    try {
+      const response = await fetch(HF_MODELS_URL, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error(`Model catalog request failed (${response.status})`);
+      const data = await response.json();
+      if (ticket !== hfRequest || provider.value !== 'huggingface') return;
+      const live = Array.isArray(data?.data) ? data.data.map(item => item?.id).filter(Boolean) : [];
+      const routed = live.flatMap(id => [id, `${id}:fastest`]);
+      renderOptions([...HF_MODELS, ...routed]);
+      hint.textContent = `Hugging Face: ${live.length} live chat models loaded. Add :fastest, :cheapest, or :preferred to control provider routing.`;
+    } catch {
+      if (ticket !== hfRequest || provider.value !== 'huggingface') return;
+      hint.textContent = 'Hugging Face: using curated suggestions. The live catalog could not be loaded, but you can still type any compatible model ID.';
+    }
+  };
+
   provider.addEventListener('change', () => setTimeout(refresh, 0));
+  key?.addEventListener('change', refresh);
+  key?.addEventListener('blur', refresh);
   new MutationObserver(refresh).observe(provider, { childList: true });
   refresh();
 }
@@ -115,7 +141,6 @@ function mountDock() {
 
   const content = document.createElement('div');
   content.className = 'liquid-content';
-
   const existingActions = document.querySelector('.top-actions');
   if (existingActions) content.append(existingActions);
 
@@ -125,8 +150,7 @@ function mountDock() {
   theme.type = 'button';
   theme.innerHTML = '<span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Dark</span>';
   theme.addEventListener('click', () => {
-    const next = root.dataset.theme === 'light' ? 'dark' : 'light';
-    applyTheme(next, true);
+    applyTheme(root.dataset.theme === 'light' ? 'dark' : 'light', true);
     try { tg?.HapticFeedback?.selectionChanged?.(); } catch {}
   });
   content.append(theme);
@@ -137,7 +161,6 @@ function mountDock() {
   badge.dataset.state = 'loading';
   badge.innerHTML = '<i></i><span>LiquidGL</span>';
   content.append(badge);
-
   dock.append(content);
   document.body.append(dock);
 }
@@ -145,10 +168,7 @@ function mountDock() {
 function applyTheme(theme, persist = true) {
   const next = theme === 'light' ? 'light' : 'dark';
   root.dataset.theme = next;
-  if (persist) {
-    try { localStorage.setItem(THEME_KEY, next); } catch {}
-  }
-
+  if (persist) { try { localStorage.setItem(THEME_KEY, next); } catch {} }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = next === 'light' ? '#edf3fb' : '#070b14';
 
@@ -168,7 +188,6 @@ function applyTheme(theme, persist = true) {
     tg?.setBackgroundColor?.(bg);
     tg?.setBottomBarColor?.(bg);
   } catch {}
-
   recaptureSoon();
 }
 
@@ -178,28 +197,14 @@ async function initLiquidGL() {
     const module = await import(LIQUID_GL_URL);
     const liquidGL = module.default;
     if (typeof liquidGL !== 'function') throw new Error('liquidGL did not load correctly');
-
     const reduced = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
     liquidInstance = liquidGL({
-      snapshot: 'body',
-      target: '.liquidGL',
+      snapshot: 'body', target: '.liquidGL',
       resolution: Math.min(1.45, Math.max(1, (window.devicePixelRatio || 1) * 0.72)),
-      refraction: 0.014,
-      aberration: 0.025,
-      bevelDepth: 0.07,
-      bevelWidth: 0.15,
+      refraction: 0.014, aberration: 0.025, bevelDepth: 0.07, bevelWidth: 0.15,
       frost: root.dataset.theme === 'light' ? 0.65 : 1.05,
-      shadow: true,
-      specular: !reduced,
-      reveal: reduced ? 'none' : 'fade',
-      tilt: false,
-      magnify: 1.006,
-      on: {
-        init() {
-          liquidReady = true;
-          if (badge) badge.dataset.state = 'ready';
-        }
-      }
+      shadow: true, specular: !reduced, reveal: reduced ? 'none' : 'fade', tilt: false, magnify: 1.006,
+      on: { init() { liquidReady = true; if (badge) badge.dataset.state = 'ready'; } }
     });
     if (badge && !liquidReady) badge.dataset.state = 'loading';
   } catch (error) {
@@ -215,11 +220,7 @@ async function initLiquidGL() {
 function recaptureSoon() {
   clearTimeout(recaptureSoon.timer);
   recaptureSoon.timer = setTimeout(() => {
-    try {
-      const renderer = window.__liquidGLRenderer__;
-      renderer?.captureSnapshot?.();
-      renderer?.render?.();
-    } catch {}
+    try { window.__liquidGLRenderer__?.captureSnapshot?.(); window.__liquidGLRenderer__?.render?.(); } catch {}
   }, 80);
 }
 
