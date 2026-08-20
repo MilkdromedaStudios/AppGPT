@@ -9,7 +9,7 @@ const $=s=>document.querySelector(s);
 let favorites=read(FAVORITES_KEY,[]);
 let usage=read(USAGE_KEY,{});
 let prefs=read(PREFS_KEY,{category:'all',favorites:false,sort:'default'});
-let enhancing=false;
+let enhancing=false,gridObserver=null;
 
 requestAnimationFrame(waitForLibrary);
 
@@ -19,9 +19,11 @@ function waitForLibrary(){
   mountToolbar();
   mountCreator();
   grid.addEventListener('click',onGridClick,true);
-  new MutationObserver(()=>enhance()).observe(grid,{childList:true,subtree:true});
+  gridObserver=new MutationObserver(()=>enhance());
+  observeGrid();
   enhance();
 }
+function observeGrid(){const grid=$('#templateGrid');if(grid&&gridObserver)gridObserver.observe(grid,{childList:true,subtree:true})}
 
 function mountToolbar(){
   if($('#nightTemplateTools'))return;
@@ -82,6 +84,7 @@ async function allTemplates(){return [...await listCustomTemplates(),...BUILTIN_
 async function enhance(){
   if(enhancing)return;
   enhancing=true;
+  gridObserver?.disconnect();
   try{
     const all=await allTemplates();
     populateCategories(all);
@@ -110,7 +113,7 @@ async function enhance(){
     });
     applyFilterAndSort(cards);
     updateSummary(cards,all.length);
-  }finally{enhancing=false}
+  }finally{enhancing=false;observeGrid()}
 }
 
 function populateCategories(all){
@@ -130,9 +133,9 @@ function applyFilterAndSort(cards){
     const visible=(!prefs.favorites||favorites.includes(id))&&(prefs.category==='all'||category===prefs.category)&&(!q||card.textContent.toLowerCase().includes(q));
     card.hidden=!visible;
   });
+  if(prefs.sort==='default')return;
   const grid=$('#templateGrid');
-  const sorted=[...cards].sort((a,b)=>compareCards(a,b));
-  sorted.forEach(x=>grid.append(x));
+  [...cards].sort((a,b)=>compareCards(a,b)).forEach(x=>grid.append(x));
 }
 
 function compareCards(a,b){
