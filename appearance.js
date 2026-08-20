@@ -1,4 +1,5 @@
 const THEME_KEY = 'appgpt_theme';
+const APPEARANCE_CSS = './appearance.css';
 const LIQUID_GL_URL = 'https://cdn.jsdelivr.net/npm/liquid-gl@2.0.1/liquidGL.js';
 const root = document.documentElement;
 const tg = window.Telegram?.WebApp;
@@ -8,10 +9,21 @@ let liquidInstance = null;
 init();
 
 function init() {
+  loadAppearanceCss();
   mountDock();
   applyTheme(readTheme(), false);
-  window.addEventListener('load', () => initLiquidGL(), { once: true });
+  if (document.readyState === 'complete') initLiquidGL();
+  else window.addEventListener('load', () => initLiquidGL(), { once: true });
   window.addEventListener('appgpt-chat-changed', recaptureSoon);
+}
+
+function loadAppearanceCss() {
+  if (document.querySelector('link[data-appgpt-appearance]')) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = APPEARANCE_CSS;
+  link.dataset.appgptAppearance = 'true';
+  document.head.append(link);
 }
 
 function readTheme() {
@@ -92,7 +104,7 @@ async function initLiquidGL() {
     const liquidGL = module.default;
     if (typeof liquidGL !== 'function') throw new Error('liquidGL did not load correctly');
 
-    const reduced = matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    const reduced = Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
     liquidInstance = liquidGL({
       snapshot: 'body',
       target: '.liquidGL',
