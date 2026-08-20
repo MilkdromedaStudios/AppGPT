@@ -1,6 +1,26 @@
 export const PROVIDERS = {
   openai: { name: 'OpenAI', kind: 'openai-compatible', baseUrl: 'https://api.openai.com/v1', model: 'gpt-5-mini', vision: true, hint: 'OpenAI-compatible chat endpoint' },
   openrouter: { name: 'OpenRouter', kind: 'openai-compatible', baseUrl: 'https://openrouter.ai/api/v1', model: 'openai/gpt-5-mini', vision: true, hint: 'Many models through one API' },
+  huggingface: {
+    name: 'Hugging Face',
+    kind: 'openai-compatible',
+    baseUrl: 'https://router.huggingface.co/v1',
+    model: 'Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest',
+    vision: true,
+    hint: 'Hugging Face Inference Providers router · LLMs and VLMs',
+    modelHint: 'Use any chat-capable Hugging Face model ID. Routing suffixes like :fastest, :cheapest, and :preferred are supported.',
+    models: [
+      'Qwen/Qwen3-Coder-480B-A35B-Instruct:fastest',
+      'openai/gpt-oss-120b:fastest',
+      'deepseek-ai/DeepSeek-R1:fastest',
+      'Qwen/Qwen2.5-Coder-32B-Instruct:fastest',
+      'Qwen/Qwen3-4B-Thinking-2507:fastest',
+      'Qwen/Qwen2.5-7B-Instruct-1M:fastest',
+      'google/gemma-2-2b-it:fastest',
+      'zai-org/GLM-4.5V:fastest',
+      'Qwen/Qwen2.5-VL-3B-Instruct:fastest'
+    ]
+  },
   groq: { name: 'Groq', kind: 'openai-compatible', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.3-70b-versatile', vision: false, hint: 'Fast OpenAI-compatible inference' },
   deepseek: { name: 'DeepSeek', kind: 'openai-compatible', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', vision: false, hint: 'OpenAI-compatible API' },
   mistral: { name: 'Mistral', kind: 'openai-compatible', baseUrl: 'https://api.mistral.ai/v1', model: 'mistral-small-latest', vision: false, hint: 'Mistral chat completions' },
