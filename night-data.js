@@ -9,6 +9,7 @@ let pins = loadPins();
 let sortMode = localStorage.getItem(SORT_KEY) || 'recent';
 let cache = [];
 let observer;
+let sortTimer;
 
 boot();
 
@@ -41,7 +42,7 @@ function mountSidebarTools() {
   bar.className = 'night-chat-tools';
   bar.innerHTML = `<select id="nightChatSort" aria-label="Sort chats">
     <option value="recent">Recent</option><option value="oldest">Oldest</option><option value="name">Name</option><option value="status">Status</option>
-  </select><button id="nightBackupChats" title="Backup all chats">⇩</button><button id="nightImportChats" title="Import chat or backup">⇧</button>`;
+  </select><button id="nightBackupChats" title="Backup all chats" aria-label="Backup all chats">⇩</button><button id="nightImportChats" title="Import chat or backup" aria-label="Import chat or backup">⇧</button>`;
   search.insertAdjacentElement('afterend', bar);
   $('#nightChatSort').value = sortMode;
   $('#nightChatSort').onchange = e => { sortMode = e.target.value; localStorage.setItem(SORT_KEY, sortMode); sortCards(); };
@@ -62,7 +63,11 @@ function mountImportInput() {
 
 function wireCards() {
   const grid = $('#chatGrid');
-  observer = new MutationObserver(() => decorateCards());
+  observer = new MutationObserver(() => {
+    decorateCards();
+    clearTimeout(sortTimer);
+    sortTimer = setTimeout(sortCards, 0);
+  });
   observer.observe(grid, { childList: true, subtree: true });
   decorateCards();
   grid.addEventListener('click', async e => {
@@ -105,6 +110,9 @@ function decorateCards() {
     }
     const pin = actions.querySelector('[data-night-chat="pin"]');
     if (pin) { pin.textContent = pins.has(chatId) ? '★' : '☆'; pin.setAttribute('aria-label', pins.has(chatId) ? 'Unpin chat' : 'Pin chat'); }
+    actions.querySelector('[data-night-chat="rename"]')?.setAttribute('aria-label','Rename chat');
+    actions.querySelector('[data-night-chat="duplicate"]')?.setAttribute('aria-label','Duplicate chat');
+    actions.querySelector('[data-night-chat="export"]')?.setAttribute('aria-label','Export chat');
   });
 }
 
@@ -157,9 +165,13 @@ async function duplicateChat(chatId) {
   const now = new Date().toISOString();
   const copy = clone(chat);
   copy.id = id(); copy.title = `${chat.title || 'Untitled'} copy`; copy.createdAt = now; copy.updatedAt = now; copy.status = chat.status === 'building' ? 'draft' : chat.status;
-  copy.messages = (copy.messages || []).map(m => ({...m, id:id(), status:m.status==='building'?'ready':m.status}));
-  copy.artifacts = (copy.artifacts || []).map(a => ({...a, id:id()}));
-  if (copy.project?.latestArtifactId && copy.artifacts.length) copy.project.latestArtifactId = copy.artifacts.at(-1).id;
+  const artifactIds = new Map();
+  copy.artifacts = (copy.artifacts || []).map(a => {
+    const oldId = a.id, newId = id(); artifactIds.set(oldId,newId);
+    return {...a, id:newId};
+  });
+  copy.messages = (copy.messages || []).map(m => ({...m, id:id(), artifactId:m.artifactId?artifactIds.get(m.artifactId)||null:m.artifactId, status:m.status==='building'?'ready':m.status}));
+  if (copy.project?.latestArtifactId) copy.project.latestArtifactId = artifactIds.get(copy.project.latestArtifactId) || copy.artifacts.at(-1)?.id || null;
   await saveChat(copy); await setLastChatId(copy.id);
   dispatchChanged(); toast('Chat duplicated');
 }
