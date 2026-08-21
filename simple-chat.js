@@ -5,7 +5,17 @@ import { saveChat, setLastChatId } from './storage.js';
 const $ = s => document.querySelector(s);
 let sending = false;
 
+ensureStyles();
 boot();
+
+function ensureStyles() {
+  if (document.querySelector('link[data-simple-chat]')) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = './simple-chat.css';
+  link.dataset.simpleChat = '1';
+  document.head.append(link);
+}
 
 function boot(attempt = 0) {
   const content = $('#workspace-tab-content');
